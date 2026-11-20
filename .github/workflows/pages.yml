@@ -23,13 +23,14 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# Two jobs on purpose: when deploy-pages runs in the same job right after the upload,
+# it often doesn't see the artifact yet ("No artifacts named github-pages were found",
+# https://github.com/actions/deploy-pages/issues/451). A separate job starts later and
+# the artifact is listed by then.
 jobs:
-  deploy:
-    name: Deploy root directory
+  build:
+    name: Collect root directory
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -46,8 +47,6 @@ jobs:
             --exclude 'vendor/' \
             --exclude '__links/' \
             ./ "${RUNNER_TEMP}/site/"
-          # without this file GitHub Pages hides files and directories starting with underscore
-          touch "${RUNNER_TEMP}/site/.nojekyll"
           ls -la "${RUNNER_TEMP}/site"
 
       - name: Configure Pages
@@ -58,6 +57,14 @@ jobs:
         with:
           path: ${{ runner.temp }}/site
 
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
