@@ -85,7 +85,7 @@ set -e
 /bin/bash compile.sh
 TMP="$(mktemp -d)"
 cp bin/*/xx "\${TMP}/xx-local-build"
-cp xx.sh "\${TMP}/xx.sh"
+/bin/bash bash/embed.sh "\${1:-v0.0.0}" "\${TMP}/xx.sh" "\${TMP}/xx-local-build"
 (cd "\${TMP}" && shasum -a 256 xx-* xx.sh > SHA256SUMS.txt)
 /bin/bash bash/release_notes.sh "\${1:-v0.0.0}" stopsopa/xx "\${TMP}"
 `,

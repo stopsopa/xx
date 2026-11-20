@@ -17,7 +17,7 @@ Requirements added after the plan was written, all implemented:
 | `XX_NODE_OPTIONS` | Replaces `NODE_OPTIONS` of node started by `xx`; not defined = `NODE_OPTIONS` untouched (the plan cleared it always). `test/test022`. |
 | `xx.ts`, `xx.js`, `xx.mjs`, `xx.cjs` | Searched in this order in `.git/`, then `./`, then `~/`. Loaded with `import()`, node decides the format. `test/test019` - `test/test021`. |
 | `--init [ts|js|mjs|cjs]`, `--esm [path]`, `XX_INIT_CONFIG` | Templates in `templates/`, listed in `init.json`; json and templates can be URLs or local paths. Nothing embedded in the binary. `test/test016`. |
-| `XX_BIN` required, handshake, equal versions | `__xx_check_bin` in `xx.sh`, `--handshake` in the binary, version embedded in both by the release workflow. `test/test017`. |
+| `XX_BIN` required, wrapper accepts only its own binary | `__xx_check_bin` in `xx.sh` compares md5 of the binary with hashes embedded by `bash/embed.sh` (`compile.sh`, release workflow). `test/test017`, `test/test023`. |
 | `--lock` / `--unlock` / `--copy` | Dropped completely (the plan forwarded them to the old script). |
 | `compile.sh` prints paths of binaries on stdout | Everything else goes to stderr. |
 | GitHub Pages from the root directory | `.github/workflows/pages.yml`. |
@@ -26,12 +26,12 @@ Answers to the open questions (section 10):
 
 1. Script without `.git`: switched to `${XX_TMP}/xx-<uid>/<hash of pwd>.sh`.
 2. Lookup: unchanged, only `.git/` and the current directory (then home), no walking up.
-3. Merging `~/xx.*` into local menus: not answered, not done. `~/xx.*` is used only when nothing local exists, as before.
+3. Merging `~/xx.*` into local menus: undecided, not done. `~/xx.*` is used only when nothing local exists, as before.
 4. Bugs: fixed. `xx <number>` means the number shown in the menu; `order` is a stable sort with missing = 0.
 5. Engine: node (option B).
 6. `--lock` family: dropped.
 7. Changelog per version: not answered, done as proposed (`## vX.Y.Z` sections).
-8. Intel Mac and musl builds: not answered, same three targets as securenv.
+8. Intel Mac and musl builds: no, same three targets as securenv.
 
 Other differences from the plan below:
 
@@ -40,7 +40,7 @@ Other differences from the plan below:
 - `j` / `k` do not move the selection, because typing filters the list.
 - `command` as a function (lazy) is not implemented.
 - The binary is not searched next to `xx.sh` or in `bin/<arch>/`, `XX_BIN` is the only way.
-- 22 end-to-end tests exist, numbered differently from the table in section 8.
+- 23 end-to-end tests exist, numbered differently from the table in section 8.
 - `.agents/` and `AGENTS.md` were not copied from securenv.
 
 ## 1. Decisions in short

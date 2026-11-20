@@ -15,7 +15,7 @@ Status of all things
 It consists of two files, always from the same release:
 
 - `xx-bin` - Rust binary: finds the config, shows the menu, writes the script of the picked command to a file
-- `xx.sh` - shell wrapper sourced through an alias: executes that file (that is how a command can change your current shell, e.g. activate python venv)
+- `xx.sh` - shell wrapper sourced through an alias: executes that file (that is how a command can change your current shell, e.g. activate python venv). It works only with the binaries of its own release
 
 `node` is required: the binary uses it to load the config.
 
@@ -82,7 +82,7 @@ xx
 
 The files can live anywhere, `~/.xx` is only a suggestion: `XX_BIN` points to the binary, the alias points to `xx.sh`.
 
-To update: repeat steps 1 and the `cp` + `chmod` part of step 2 with a newer release. Always replace both files: `xx.sh` refuses to work with a binary of a different version.
+To update: repeat steps 1 and the `cp` + `chmod` part of step 2 with a newer release. Always replace both files: `xx.sh` refuses to work with any binary other than the ones of its own release.
 
 After changing version of node (asdf, nvm...) update `XX_NODE_BINARY`, `xx` tells you when the path stops working.
 
@@ -206,8 +206,9 @@ The same in CommonJS (`xx.cjs`, or `xx.js`): `module.exports = (setup, ctx) => {
 Path to the xx binary (`xx-bin` from the release). Required, nothing is searched or guessed. `xx.sh` checks it on every call and refuses to continue, explaining why, when:
 
 - it is not defined, points to nothing, or the file is not executable,
-- the file is another program: `"${XX_BIN}" --handshake` has to print `xx-handshake:1:<version>`,
-- `<version>` differs from the version of `xx.sh`. Both files have the version of their release embedded.
+- md5 of the file is not one of the hashes embedded in `xx.sh`. Every `xx.sh` is built together with its binaries and carries their md5, so it accepts only them: another program, a binary of another version, a modified or half downloaded file are all refused. To make the reason easier to see the error also shows version of `xx.sh` and what the file answers to `--version`.
+
+In practice: always replace both files together.
 
 ### `XX_NODE_BINARY`
 

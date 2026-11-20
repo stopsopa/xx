@@ -8,8 +8,8 @@ RED=$'\033[31m'
 YELLOW=$'\033[33m'
 RESET=$'\033[0m'
 
-if [[ ! -f "${BIN}" ]]; then
-  echo "${0} error: binary not found at >${BIN}<. Run compile.sh first."
+if [[ ! -f "${BIN}" || ! -f "${XX_SH_PATH}" ]]; then
+  echo "${0} error: binary not found at >${BIN}< or wrapper not found at >${XX_SH_PATH}<. Run compile.sh first."
   exit 1
 fi
 

@@ -17,12 +17,8 @@
  *   130 - cancelled (Esc, Ctrl+C)
  *     1 - error
  *
- * Handshake (the other part of the contract), xx.sh does it before every use of the binary:
- *
- *   xx --handshake      prints: xx-handshake:1:<version of the binary>
- *
- * xx.sh refuses to continue if the answer has different shape (XX_BIN points to something else)
- * or if the version is different than version of xx.sh itself.
+ * The other part of the contract is checked by xx.sh alone: md5 of this binary has to be
+ * one of the hashes embedded in xx.sh by the build (bash/embed.sh).
  */
 mod loader;
 mod locate;
@@ -41,8 +37,6 @@ const HOMEPAGE: &str = "https://github.com/stopsopa/xx";
 // source of truth for --init: json with urls of templates, one for each flavour of the config
 const INIT_CONFIG: &str = "https://raw.githubusercontent.com/stopsopa/xx/main/init.json";
 const ENV_INIT_CONFIG: &str = "XX_INIT_CONFIG";
-
-const HANDSHAKE_PROTOCOL: &str = "1";
 
 const EXIT_RUN: i32 = 0;
 const EXIT_SOURCE: i32 = 55;
@@ -105,7 +99,8 @@ Environment variables:
   XX_NODE_BINARY      required: absolute path to node binary, checked on every run
   XX_NODE_OPTIONS     when defined, NODE_OPTIONS of node started by xx is set to this value
                       (not defined: NODE_OPTIONS is passed as it is)
-  XX_BIN              required by xx.sh: absolute path to this binary
+  XX_BIN              required by xx.sh: absolute path to this binary, xx.sh accepts only
+                      the binary it was built with (md5 of the file is checked)
   XX_INIT_CONFIG      used by --init and --esm: url or path of json with locations of templates
                       {{\"ts\": \"url or path\", \"js\": \"...\", \"mjs\": \"...\", \"cjs\": \"...\"}}
                       default: {INIT_CONFIG}
@@ -512,7 +507,6 @@ fn main() {
     match args.first().map(String::as_str) {
         Some("--help") | Some("-h") => return help(),
         Some("--version") | Some("-V") => return println!("xx {VERSION}"),
-        Some("--handshake") => return println!("xx-handshake:{HANDSHAKE_PROTOCOL}:{VERSION}"),
         _ => {}
     }
 

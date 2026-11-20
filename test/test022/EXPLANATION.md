@@ -5,7 +5,7 @@ Test 022 verifies env vars controlling node.
 - not defined (node available in `PATH` is not used as a fallback),
 - points to nothing,
 - points to a file which can't be executed,
-- points to a program which is not node (`/bin/echo`): the check runs `<binary> --version` and expects `vX.Y.Z`.
+- points to a program which is not node (a script created by the test; not `/bin/echo`, which on some systems answers `--version` with its own version): the check runs `<binary> --version` and expects `vX.Y.Z`.
 
 `--help` and `--version` work without it.
 

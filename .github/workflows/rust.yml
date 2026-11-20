@@ -111,13 +111,10 @@ jobs:
         run: |
           mkdir -p release-dist
           find release-artifacts -type f -exec cp {} release-dist/ \;
-          # the binary alone is not usable, the wrapper is part of every release.
-          # Version of the release is embedded in it: xx.sh refuses to work with binary of other version
-          sed 's/^__XX_VERSION="dev"$/__XX_VERSION="${{ github.ref_name }}"/' xx.sh > release-dist/xx.sh
-          if ! grep -q '^__XX_VERSION="${{ github.ref_name }}"$' release-dist/xx.sh; then
-            echo "error: version was not embedded in xx.sh"
-            exit 1
-          fi
+          # The binary alone is not usable, the wrapper is part of every release.
+          # Version and md5 of all binaries of this release are embedded in it:
+          # xx.sh refuses to work with any other binary.
+          /bin/bash bash/embed.sh "${{ github.ref_name }}" release-dist/xx.sh release-dist/xx-*
           cd release-dist
           shasum -a 256 xx-* xx.sh > SHA256SUMS.txt
           cd ..

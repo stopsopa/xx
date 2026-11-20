@@ -31,18 +31,19 @@ assert_eq "${?}" "1" "exit code when XX_NODE_BINARY is not executable"
 assert_contains "${OUT}" "can't execute it" "error when not executable"
 
 # 4. points to a program which is not node
-OUT="$(XX_NODE_BINARY="/bin/echo" "${BIN}" --list 2>&1)"
+OUT="$(XX_NODE_BINARY="${FAKE}" "${BIN}" --list 2>&1)"
 assert_eq "${?}" "1" "exit code when XX_NODE_BINARY is not node"
 assert_contains "${OUT}" "it doesn't look like node" "error when not node"
-assert_contains "${OUT}" "stdout:    >--version<" "error shows what the program answered"
+assert_contains "${OUT}" "XX_NODE_BINARY=>${FAKE}< - it doesn't look like node" "error names the program"
+assert_contains "${OUT}" "stdout:    >I am something else<" "error shows what the program answered"
 
 # 5. checked on every run which needs node: also direct run, --gen, --init, through the wrapper
 for ARGS in "opts" "--gen opts" "--init" "--esm"; do
-  OUT="$(XX_NODE_BINARY="/bin/echo" "${BIN}" ${ARGS} 2>&1)"
+  OUT="$(XX_NODE_BINARY="${FAKE}" "${BIN}" ${ARGS} 2>&1)"
   assert_eq "${?}" "1" "exit code of >xx ${ARGS}< when XX_NODE_BINARY is not node"
   assert_contains "${OUT}" "it doesn't look like node" "error of >xx ${ARGS}<"
 done
-OUT="$(XX_NODE_BINARY="/bin/echo" /bin/bash -c "source \"${XXSH}\" opts; echo \"code=\${?}\"" 2>&1)"
+OUT="$(XX_NODE_BINARY="${FAKE}" /bin/bash -c "source \"${XXSH}\" opts; echo \"code=\${?}\"" 2>&1)"
 assert_contains "${OUT}" "it doesn't look like node" "error through the wrapper"
 assert_contains "${OUT}" "code=1" "return code through the wrapper"
 
@@ -68,5 +69,5 @@ OUT="$(XX_NODE_OPTIONS="--no-such-option-xx" "${BIN}" opts 2>&1)"
 assert_eq "${?}" "1" "exit code with broken XX_NODE_OPTIONS"
 assert_contains "${OUT}" "XX_NODE_OPTIONS: >--no-such-option-xx<" "error shows XX_NODE_OPTIONS"
 
-echo "  XX_NODE_BINARY=/bin/echo xx --list"
+echo "  XX_NODE_BINARY=/path/to/something-else xx --list"
 exit 0

@@ -2,6 +2,11 @@
 #
 #   /bin/bash compile.sh
 #
+# Result:
+#   bin/<arch>/xx      the binary
+#   bin/<arch>/xx.sh   the wrapper which accepts exactly that binary (md5 embedded, bash/embed.sh).
+#                      It has to be regenerated after every build, that's why it is done here.
+#
 # stdout: only absolute paths of binaries found in bin/ after the build, one per line
 #         (every binary which is there, however many), so it can be consumed by other scripts:
 #           export XX_BIN="$(/bin/bash compile.sh | head -n 1)"
@@ -44,6 +49,11 @@ if [[ ! -f "${SRC_BIN}" ]]; then
 fi
 
 cp "${SRC_BIN}" "${XX_BIN_PATH}"
+
+/bin/bash "${DIR}/bash/embed.sh" "${XX_VERSION}" "${XX_SH_PATH}" "${XX_BIN_PATH}" || {
+  echo "${0} error: generating >${XX_SH_PATH}< failed" >&2
+  exit 1
+}
 
 echo "${GREEN}Done. Binaries:${RESET}" >&2
 

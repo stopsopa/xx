@@ -3,24 +3,39 @@ source "${DIR}/../_lib.sh"
 
 echo 'module.exports = () => ({ one: { command: `echo executed-one`, confirm: false } });' > xx.cjs
 
-# the binary side of the contract
-assert_eq "$("${BIN}" --handshake)" "xx-handshake:1:dev" "answer of the binary"
 assert_eq "$("${BIN}" --version)" "xx dev" "version of the binary"
 
-# wrapper of another version: what the release workflow does to xx.sh
-sed 's/^__XX_VERSION="dev"$/__XX_VERSION="v9.9.9"/' "${XXSH}" > "${WORK}/xx-other.sh"
-grep -q '^__XX_VERSION="v9.9.9"$' "${WORK}/xx-other.sh" || fail "version line not found in xx.sh, release workflow relies on it"
+# what the build embedded in the wrapper
+MD5="$(md5sum "${BIN}" 2> /dev/null | cut -d ' ' -f 1)"
+if [[ -z "${MD5}" ]]; then
+  MD5="$(md5 -q "${BIN}")"
+fi
+grep -q -x -F "__XX_BIN_MD5=\"${MD5}\"" "${XXSH}" || fail "md5 >${MD5}< of the binary is not embedded in >${XXSH}<"
+grep -q -x -F '__XX_VERSION="dev"' "${XXSH}" || fail "version is not embedded in >${XXSH}<"
 
-# program which is not xx
-printf '#!/bin/bash\necho "I am something else"\n' > "${WORK}/fake"
-chmod a+x "${WORK}/fake"
+# xx.sh in the repository must stay unbuilt: bash/embed.sh replaces exactly these two lines
+grep -q -x -F '__XX_BIN_MD5=""' "${ROOT}/xx.sh" || fail "line __XX_BIN_MD5=\"\" not found in xx.sh of the repository"
+grep -q -x -F '__XX_VERSION="dev"' "${ROOT}/xx.sh" || fail "line __XX_VERSION=\"dev\" not found in xx.sh of the repository"
+
+# wrapper built for more binaries (release: one xx.sh for all platforms) accepts each of them
+cp "${BIN}" "${WORK}/other-platform"
+echo "pretend this is binary for other platform" >> "${WORK}/other-platform"
+/bin/bash "${ROOT}/bash/embed.sh" v9.9.9 "${WORK}/xx-release.sh" "${WORK}/other-platform" "${BIN}" 2> /dev/null
+assert_eq "${?}" "0" "exit code of bash/embed.sh"
+
+# the binary changed after the wrapper was built
+cp "${BIN}" "${WORK}/modified"
+echo "x" >> "${WORK}/modified"
 
 echo "data" > "${WORK}/plain"
 
 for SHELL_BIN in /bin/bash zsh; do
   # all good
   OUT="$("${SHELL_BIN}" -c "source \"${XXSH}\" one; echo \"code=\${?}\"" 2>&1)"
-  assert_eq "${OUT}" "$(printf 'executed-one\ncode=0')" "${SHELL_BIN}: matching versions"
+  assert_eq "${OUT}" "$(printf 'executed-one\ncode=0')" "${SHELL_BIN}: binary the wrapper was built with"
+
+  OUT="$("${SHELL_BIN}" -c "source \"${WORK}/xx-release.sh\" one; echo \"code=\${?}\"" 2>&1)"
+  assert_eq "${OUT}" "$(printf 'executed-one\ncode=0')" "${SHELL_BIN}: wrapper built for more binaries"
 
   # XX_BIN not defined: nothing is searched
   OUT="$(unset XX_BIN; "${SHELL_BIN}" -c "source \"${XXSH}\" one; echo \"code=\${?}\"" 2>&1)"
@@ -39,22 +54,24 @@ for SHELL_BIN in /bin/bash zsh; do
   assert_contains "${OUT}" "code=1" "${SHELL_BIN}: return code when XX_BIN not executable"
 
   # other program
-  OUT="$(XX_BIN="${WORK}/fake" "${SHELL_BIN}" -c "source \"${XXSH}\" one; echo \"code=\${?}\"" 2>&1)"
-  assert_contains "${OUT}" "it is not the xx binary" "${SHELL_BIN}: XX_BIN is other program"
-  assert_contains "${OUT}" "it printed >I am something else<" "${SHELL_BIN}: answer of the other program is shown"
+  OUT="$(XX_BIN="${FAKE}" "${SHELL_BIN}" -c "source \"${XXSH}\" one; echo \"code=\${?}\"" 2>&1)"
+  assert_contains "${OUT}" "it is not the xx binary this xx.sh was built with" "${SHELL_BIN}: XX_BIN is other program"
+  assert_contains "${OUT}" "md5 xx.sh expects    : ${MD5}" "${SHELL_BIN}: expected md5 is shown"
+  assert_contains "${OUT}" ": I am something else" "${SHELL_BIN}: answer of the other program to --version is shown"
   assert_contains "${OUT}" "code=1" "${SHELL_BIN}: return code when XX_BIN is other program"
 
-  # versions differ
-  OUT="$("${SHELL_BIN}" -c "source \"${WORK}/xx-other.sh\" one; echo \"code=\${?}\"" 2>&1)"
-  assert_contains "${OUT}" "versions of xx.sh and of the xx binary are different" "${SHELL_BIN}: version mismatch"
-  assert_contains "${OUT}" "xx.sh     : v9.9.9" "${SHELL_BIN}: version of the wrapper shown"
-  assert_contains "${OUT}" "xx binary : dev" "${SHELL_BIN}: version of the binary shown"
-  assert_contains "${OUT}" "code=1" "${SHELL_BIN}: return code on version mismatch"
-  assert_not_contains "${OUT}" "executed-one" "${SHELL_BIN}: nothing executed on version mismatch"
+  # real xx binary, but not the one the wrapper was built with
+  OUT="$(XX_BIN="${WORK}/modified" "${SHELL_BIN}" -c "source \"${XXSH}\" one; echo \"code=\${?}\"" 2>&1)"
+  assert_contains "${OUT}" "it is not the xx binary this xx.sh was built with" "${SHELL_BIN}: modified binary"
+  assert_contains "${OUT}" "version of xx.sh     : dev" "${SHELL_BIN}: version of the wrapper is shown"
+  assert_contains "${OUT}" ": xx dev" "${SHELL_BIN}: version of the binary is shown"
+  assert_contains "${OUT}" "code=1" "${SHELL_BIN}: return code for modified binary"
+  assert_not_contains "${OUT}" "executed-one" "${SHELL_BIN}: nothing executed with modified binary"
 
-  # also --help is refused on mismatch
-  OUT="$("${SHELL_BIN}" -c "source \"${WORK}/xx-other.sh\" --help; echo \"code=\${?}\"" 2>&1)"
-  assert_contains "${OUT}" "code=1" "${SHELL_BIN}: --help refused on version mismatch"
+  # xx.sh straight from the repository has no md5 embedded
+  OUT="$("${SHELL_BIN}" -c "source \"${ROOT}/xx.sh\" one; echo \"code=\${?}\"" 2>&1)"
+  assert_contains "${OUT}" "has no md5 of the xx binary embedded" "${SHELL_BIN}: xx.sh from the repository"
+  assert_contains "${OUT}" "code=1" "${SHELL_BIN}: return code of xx.sh from the repository"
 
   # --version: both parts answer
   OUT="$("${SHELL_BIN}" -c "source \"${XXSH}\" --version; echo \"code=\${?}\"" 2>&1)"
@@ -73,5 +90,5 @@ for SHELL_BIN in /bin/bash zsh; do
   assert_contains "${OUT}" "function >--lock< not defined" "${SHELL_BIN}: --lock is not handled"
 done
 
-echo "  source xx.sh --version"
+echo "  source bin/<arch>/xx.sh --version"
 exit 0
