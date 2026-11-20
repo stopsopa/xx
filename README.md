@@ -23,16 +23,18 @@ It consists of two files, always from the same release:
 
 ### 1. Download and verify
 
-Go to [GitHub Releases](https://github.com/stopsopa/xx/releases), open the release you want (the latest one normally) and run the block for your platform. It downloads two files to the **current directory** and verifies checksums of both:
+Go to [GitHub Releases](https://github.com/stopsopa/xx/releases), open the release you want (the latest one normally) and run the block for your platform. It creates a new temporary directory, `cd`s into it, downloads two files there and verifies checksums of both:
 
 - `xx-bin` - the binary for your platform
 - `xx.sh` - the wrapper
 
-Both lines of the verification have to end with `OK`. Then come back here.
+Both lines of the verification have to end with `OK`. Then come back here, **in the same terminal** (you are in the directory with the two files).
+
+Don't download them by hand into a clone of this repository: `xx.sh` from a release would overwrite `xx.sh` of the repository, which is the source the build generates wrappers from.
 
 ### 2. Install
 
-In the same directory where you downloaded the files:
+In the directory with the two downloaded files:
 
 ```sh
 mkdir -p ~/.xx

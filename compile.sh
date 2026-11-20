@@ -51,7 +51,7 @@ fi
 cp "${SRC_BIN}" "${XX_BIN_PATH}"
 
 /bin/bash "${DIR}/bash/embed.sh" "${XX_VERSION}" "${XX_SH_PATH}" "${XX_BIN_PATH}" || {
-  echo "${0} error: generating >${XX_SH_PATH}< failed" >&2
+  echo "${0} error: the binary was built >${XX_BIN_PATH}< but generating the wrapper >${XX_SH_PATH}< failed, see the explanation above" >&2
   exit 1
 }
 

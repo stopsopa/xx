@@ -10,7 +10,8 @@
 # Body consist of:
 #   1. section "## <tag>" from changelog.md (skipped if there is no such section)
 #   2. download + checksum commands for each binary (always together with xx.sh),
-#      files are saved to current directory, README.md continues from there
+#      files are saved to a new temporary directory (the block starts with cd to it),
+#      README.md continues from there
 #   3. table of checksums
 # Used by .github/workflows/rust.yml, can be executed locally to preview the result.
 
@@ -63,7 +64,7 @@ Two files are needed, both from this release (they refuse to work together if th
 - the binary for your platform, saved as \`xx-bin\`
 - the wrapper \`xx.sh\`
 
-Pick the block for your platform. It downloads both files to the current directory and verifies checksums of both.
+Pick the block for your platform. It creates a new temporary directory, downloads both files there and verifies checksums of both. Stay in that directory (the same terminal) for the next step.
 Then go back to [README.md → Installation → step 2](https://github.com/${REPO}#2-install) to copy them to their place and set up the shell.
 
 EEE
@@ -77,6 +78,10 @@ while read -r HASH FILE; do
 #### \`${FILE}\`
 
 \`\`\`bash
+# New empty directory: the files are called xx-bin and xx.sh, downloading them
+# to a directory which already has files with these names would overwrite them
+cd "\$(mktemp -d)"
+
 # Download via curl:
 curl -fL -o xx-bin \\
   ${BASE_URL}/${FILE}
