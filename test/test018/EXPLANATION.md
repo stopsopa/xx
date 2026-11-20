@@ -4,4 +4,4 @@ Test 018 verifies behaviour in a real interactive terminal (pseudo terminal crea
 - Real arrow key and Enter (escape sequences read from `/dev/tty`) pick a command from the menu.
 - Ctrl+C in the menu returns 130 and the shell stays alive with the cursor restored.
 
-Every shell (system bash, modern bash if installed, zsh) gets its own pseudo terminal and all run at the same time. `terminal.py` never sleeps for a fixed time, it waits for the prompt or for the expected text, so the test takes about 2 seconds.
+Every shell (system bash, modern bash if installed, zsh) gets its own pseudo terminal and its own directory (the generated script is one file per directory, shells sharing a directory would overwrite each other's script) and all run at the same time. `terminal.py` never sleeps for a fixed time, it waits for the prompt or for the expected text, so the test takes about 2 seconds.

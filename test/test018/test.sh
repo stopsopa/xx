@@ -20,9 +20,15 @@ EEE
 # Every shell gets its own pseudo terminal, all of them run at the same time
 # start <label> <bash|zsh> <path to shell binary>
 LABELS=()
+#
+# Every shell also gets its own directory with a copy of the config. Without .git the generated
+# script is one file per directory: in a shared directory one shell deletes / rewrites the script
+# the other one is just about to source (it then sources an empty file and nothing happens).
 start() {
   LABELS+=("${1}")
-  python3 "${DIR}/terminal.py" "${2}" "${3}" "${XXSH}" > "${WORK}/${1}.out" &
+  mkdir "${WORK}/dir-${1}"
+  cp "${WORK}/project/xx.cjs" "${WORK}/dir-${1}/xx.cjs"
+  (cd "${WORK}/dir-${1}" && python3 "${DIR}/terminal.py" "${2}" "${3}" "${XXSH}" > "${WORK}/${1}.out") &
 }
 
 # check <label>
