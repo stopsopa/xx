@@ -69,6 +69,8 @@ export XX_NODE_BINARY="/path/to/node"       # node -e 'console.log(process.execP
 alias xx='source "/path/to/clone/bin/arm64/xx.sh"'
 ```
 
+`~/` at the beginning of `XX_BIN` and `XX_NODE_BINARY` is expanded by `xx.sh` and by the binary (`locate::expand_tilde`), also when written in quotes.
+
 After changing `xx.sh` or anything in `src/` run `compile.sh` again, it refreshes both files.
 
 To try it next to the old `xx` without replacing it, give the alias another name (`alias xxn=...`).

@@ -97,6 +97,7 @@ Config format:
 
 Environment variables:
   XX_NODE_BINARY      required: absolute path to node binary, checked on every run
+                      (in all paths below \"~/\" at the beginning means home directory)
   XX_NODE_OPTIONS     when defined, NODE_OPTIONS of node started by xx is set to this value
                       (not defined: NODE_OPTIONS is passed as it is)
   XX_BIN              required by xx.sh: absolute path to this binary, xx.sh accepts only
@@ -129,9 +130,9 @@ fn fallback_generated(cwd: &Path) -> PathBuf {
     // XX_TMP, then TMPDIR which the system provides (macOS: private directory of the user), then /tmp
     let tmp = ["XX_TMP", "TMPDIR"]
         .iter()
-        .filter_map(std::env::var_os)
+        .filter_map(|name| std::env::var(name).ok())
         .find(|t| !t.is_empty())
-        .map(PathBuf::from)
+        .map(|t| PathBuf::from(locate::expand_tilde(&t, home().as_deref())))
         .unwrap_or_else(|| PathBuf::from("/tmp"));
     // SAFETY: getuid has no preconditions and can't fail
     let uid = unsafe { libc::getuid() };
@@ -285,7 +286,11 @@ fn fetch(source: &str, base: &Path) -> Result<Vec<u8>, String> {
 
         output.stdout
     } else {
-        let path = Path::new(source.strip_prefix("file://").unwrap_or(source));
+        let path = locate::expand_tilde(
+            source.strip_prefix("file://").unwrap_or(source),
+            home().as_deref(),
+        );
+        let path = Path::new(&path);
         let path = if path.is_absolute() {
             path.to_path_buf()
         } else {
@@ -342,6 +347,18 @@ fn init(kind: &str, target: Option<&str>) {
     let config_source = match std::env::var(ENV_INIT_CONFIG) {
         Ok(u) if !u.trim().is_empty() => u.trim().to_string(),
         _ => INIT_CONFIG.to_string(),
+    };
+
+    // local path: "~/" at the beginning means home directory
+    let config_source = if is_url(&config_source) {
+        config_source
+    } else {
+        locate::expand_tilde(
+            config_source
+                .strip_prefix("file://")
+                .unwrap_or(&config_source),
+            home().as_deref(),
+        )
     };
 
     let config_bytes = fetch(&config_source, &cwd)
@@ -511,7 +528,7 @@ fn main() {
     }
 
     // everything else: node is checked first, on every run
-    let node = node::resolve().unwrap_or_else(|e| fail(&e));
+    let node = node::resolve(home().as_deref()).unwrap_or_else(|e| fail(&e));
 
     match args.first().map(String::as_str) {
         Some("--list") => list(&node, args.get(1).map(String::as_str) == Some("--json")),

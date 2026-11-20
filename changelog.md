@@ -11,6 +11,7 @@ First release of `xx` as a Rust binary + `xx.sh` wrapper. It replaces the node +
 - **Menu**: drawn by the binary itself (no inquirer, no bundle). Selected row in reverse colors, block indicator, description under the list. New: type to filter rows by name or number.
 - **Config**: `xx.ts`, `xx.js`, `xx.mjs`, `xx.cjs` are accepted, searched in this order in `.git/`, then in the current directory, then in home. `xx.ts` is executed by node directly (22.18+). `xx.js` can be ES module or CommonJS. The function may be async, gets context `(setup, { args, cwd, configPath })` as second argument, output printed by the config goes to stderr.
 - **`XX_NODE_BINARY`** (required): path to node, checked on every run. `node` from `PATH` is not used.
+- **`~/` in paths**: `XX_BIN`, `XX_NODE_BINARY`, `XX_INIT_CONFIG` (and paths inside of its json), `XX_TMP` can start with `~/`, also when written in quotes.
 - **`XX_NODE_OPTIONS`**: replaces `NODE_OPTIONS` for node started by `xx`. Without it `NODE_OPTIONS` is passed untouched.
 - **`XX_BIN`** (required): `xx.sh` verifies on every call that `XX_BIN` is one of the binaries it was built with: md5 of the binaries of the release is embedded in `xx.sh`.
 - **Arguments**: `xx <name> [args]` as before, new `xx -- [args]` opens the menu and passes args to the picked command.

@@ -28,6 +28,14 @@ if [[ "${THIRD}" != "${WORK}/systmp/xx-$(id -u)/"*.sh ]]; then
   fail "without XX_TMP: expected file in >${WORK}/systmp/xx-$(id -u)< got >${THIRD}<"
 fi
 
+# "~/" at the beginning of XX_TMP means home directory
+mkdir "${HOME}/mytmp"
+FOURTH="$(XX_TMP="~/mytmp" "${BIN}" one 2>&1)"
+if [[ "${FOURTH}" != "${HOME}/mytmp/xx-$(id -u)/"*.sh ]]; then
+  fail "XX_TMP=~/mytmp: expected file in >${HOME}/mytmp/xx-$(id -u)< got >${FOURTH}<"
+fi
+rm -r "${HOME}/mytmp"
+
 # XX_TMP wins over TMPDIR
 assert_eq "$(TMPDIR="${WORK}/systmp" "${BIN}" one)" "${FIRST}" "XX_TMP wins over TMPDIR"
 

@@ -29,6 +29,10 @@ echo "x" >> "${WORK}/modified"
 
 echo "data" > "${WORK}/plain"
 
+# for XX_BIN="~/..."
+mkdir "${HOME}/.xx"
+cp "${BIN}" "${HOME}/.xx/xx-bin"
+
 for SHELL_BIN in /bin/bash zsh; do
   # all good
   OUT="$("${SHELL_BIN}" -c "source \"${XXSH}\" one; echo \"code=\${?}\"" 2>&1)"
@@ -36,6 +40,13 @@ for SHELL_BIN in /bin/bash zsh; do
 
   OUT="$("${SHELL_BIN}" -c "source \"${WORK}/xx-release.sh\" one; echo \"code=\${?}\"" 2>&1)"
   assert_eq "${OUT}" "$(printf 'executed-one\ncode=0')" "${SHELL_BIN}: wrapper built for more binaries"
+
+  # "~/" at the beginning of XX_BIN means home directory (the shell doesn't expand it inside of quotes)
+  OUT="$(XX_BIN="~/.xx/xx-bin" "${SHELL_BIN}" -c "source \"${XXSH}\" one; echo \"code=\${?}\"" 2>&1)"
+  assert_eq "${OUT}" "$(printf 'executed-one\ncode=0')" "${SHELL_BIN}: XX_BIN starting with ~/"
+
+  OUT="$(XX_BIN="~/.xx/nothing" "${SHELL_BIN}" -c "source \"${XXSH}\" one; echo \"code=\${?}\"" 2>&1)"
+  assert_contains "${OUT}" "XX_BIN=>${HOME}/.xx/nothing< - file doesn't exist" "${SHELL_BIN}: error shows expanded XX_BIN"
 
   # XX_BIN not defined: nothing is searched
   OUT="$(unset XX_BIN; "${SHELL_BIN}" -c "source \"${XXSH}\" one; echo \"code=\${?}\"" 2>&1)"

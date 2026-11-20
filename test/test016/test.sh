@@ -67,6 +67,14 @@ assert_eq "${?}" "0" "exit code with relative paths"
 cmp -s .git/xx.mjs own/my.mjs || fail "relative paths: .git/xx.mjs differs"
 rm .git/xx.mjs
 
+# "~/" at the beginning: in XX_INIT_CONFIG and in paths inside of the json
+cp own/my.mjs "${HOME}/home.mjs"
+echo '{"mjs": "~/home.mjs"}' > "${HOME}/init.json"
+XX_INIT_CONFIG="~/init.json" "${BIN}" --init mjs > /dev/null 2>&1
+assert_eq "${?}" "0" "exit code with paths starting with ~/"
+cmp -s .git/xx.mjs own/my.mjs || fail "paths starting with ~/: .git/xx.mjs differs"
+rm .git/xx.mjs "${HOME}/home.mjs" "${HOME}/init.json"
+
 # 6. errors: kind missing in json, broken json, missing json, missing template
 OUT="$(XX_INIT_CONFIG="own/init.json" "${BIN}" --init ts 2>&1)"
 assert_eq "${?}" "1" "exit code when kind is missing in json"

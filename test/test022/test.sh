@@ -47,6 +47,14 @@ OUT="$(XX_NODE_BINARY="${FAKE}" /bin/bash -c "source \"${XXSH}\" opts; echo \"co
 assert_contains "${OUT}" "it doesn't look like node" "error through the wrapper"
 assert_contains "${OUT}" "code=1" "return code through the wrapper"
 
+# "~/" at the beginning means home directory (the shell doesn't expand it inside of quotes)
+ln -s "${NODE}" "${HOME}/node-link"
+OUT="$(XX_NODE_BINARY="~/node-link" "${BIN}" --list 2>&1)"
+assert_eq "${OUT}" "  1 - opts" "XX_NODE_BINARY starting with ~/"
+
+OUT="$(XX_NODE_BINARY="~/no-node-here" "${BIN}" --list 2>&1)"
+assert_contains "${OUT}" "XX_NODE_BINARY=>${HOME}/no-node-here< - file doesn't exist" "error shows expanded path"
+
 # --help and --version work without node, to be able to read about XX_NODE_BINARY
 OUT="$(unset XX_NODE_BINARY; "${BIN}" --help)"
 assert_eq "${?}" "0" "--help without XX_NODE_BINARY"

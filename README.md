@@ -35,10 +35,10 @@ Both lines of the verification have to end with `OK`. Then come back here.
 In the same directory where you downloaded the files:
 
 ```sh
-mkdir -p "${HOME}/.xx"
-cp xx-bin xx.sh "${HOME}/.xx/"
-chmod 755 "${HOME}/.xx/xx-bin"
-chmod 644 "${HOME}/.xx/xx.sh"
+mkdir -p ~/.xx
+cp xx-bin xx.sh ~/.xx/
+chmod 755 ~/.xx/xx-bin
+chmod 644 ~/.xx/xx.sh
 ```
 
 Add three lines to the startup file of your shell. Run the block for your shell once (it resolves the path of `node` you are using right now and writes it as a fixed path):
@@ -48,9 +48,9 @@ Add three lines to the startup file of your shell. Run the block for your shell 
 cat <<EEE >> ~/.zshrc
 
 # xx - https://github.com/stopsopa/xx
-export XX_BIN="\${HOME}/.xx/xx-bin"
-export XX_NODE_BINARY="$(node -e 'console.log(process.execPath)')"
-alias xx='source "\${HOME}/.xx/xx.sh"'
+export XX_BIN="~/.xx/xx-bin"
+export XX_NODE_BINARY="$(node -e 'const p = process.execPath, h = require("os").homedir(); console.log(p.startsWith(h + "/") ? "~" + p.slice(h.length) : p)')"
+alias xx='source ~/.xx/xx.sh'
 EEE
 ```
 
@@ -59,11 +59,22 @@ EEE
 cat <<EEE >> ~/.bashrc
 
 # xx - https://github.com/stopsopa/xx
-export XX_BIN="\${HOME}/.xx/xx-bin"
-export XX_NODE_BINARY="$(node -e 'console.log(process.execPath)')"
-alias xx='source "\${HOME}/.xx/xx.sh"'
+export XX_BIN="~/.xx/xx-bin"
+export XX_NODE_BINARY="$(node -e 'const p = process.execPath, h = require("os").homedir(); console.log(p.startsWith(h + "/") ? "~" + p.slice(h.length) : p)')"
+alias xx='source ~/.xx/xx.sh'
 EEE
 ```
+
+What lands in the file (node installed with asdf as an example):
+
+```sh
+# xx - https://github.com/stopsopa/xx
+export XX_BIN="~/.xx/xx-bin"
+export XX_NODE_BINARY="~/.asdf/installs/nodejs/24.12.0/bin/node"
+alias xx='source ~/.xx/xx.sh'
+```
+
+`~/` at the beginning of a path means your home directory. Inside of quotes the shell leaves `~` as it is, `xx.sh` and the binary expand it themselves, in every path they read from env vars.
 
 Open a **new terminal** and check that it works, without any path:
 
@@ -192,6 +203,8 @@ The same in CommonJS (`xx.cjs`, or `xx.js`): `module.exports = (setup, ctx) => {
 
 ## Environment variables
 
+In every variable holding a path, `~/` at the beginning means your home directory (the shell doesn't expand `~` inside of quotes, so `xx` does).
+
 | Variable | Required | Read by | What it expects |
 | --- | --- | --- | --- |
 | `XX_BIN` | yes | `xx.sh` | Path to the xx binary. |
@@ -203,7 +216,7 @@ The same in CommonJS (`xx.cjs`, or `xx.js`): `module.exports = (setup, ctx) => {
 
 ### `XX_BIN`
 
-Path to the xx binary (`xx-bin` from the release). Required, nothing is searched or guessed. `xx.sh` checks it on every call and refuses to continue, explaining why, when:
+Path to the xx binary (`xx-bin` from the release), `~/` at the beginning means home directory. Required, nothing is searched or guessed. `xx.sh` checks it on every call and refuses to continue, explaining why, when:
 
 - it is not defined, points to nothing, or the file is not executable,
 - md5 of the file is not one of the hashes embedded in `xx.sh`. Every `xx.sh` is built together with its binaries and carries their md5, so it accepts only them: another program, a binary of another version, a modified or half downloaded file are all refused. To make the reason easier to see the error also shows version of `xx.sh` and what the file answers to `--version`.
@@ -220,6 +233,8 @@ Checked on every run (except `--help` and `--version`): the file has to exist an
 # path of node you are using right now
 node -e 'console.log(process.execPath)'
 ```
+
+`~/` at the beginning means home directory: `export XX_NODE_BINARY="~/.asdf/installs/nodejs/24.12.0/bin/node"`.
 
 Any version of node which can run your config is fine; `xx.ts` needs 22.18+.
 
@@ -239,7 +254,7 @@ export XX_NODE_OPTIONS=""
 
 ### `XX_INIT_CONFIG`
 
-Used by `xx --init` and `xx --esm`. URL (`http://`, `https://`) or path of a json file which says where the template of each kind is:
+Used by `xx --init` and `xx --esm`. URL (`http://`, `https://`) or path (also starting with `~/`) of a json file which says where the template of each kind is:
 
 ```json
 {
@@ -261,7 +276,7 @@ Used by `xx --init` and `xx --esm`. URL (`http://`, `https://`) or path of a jso
 
 ### `XX_TMP`
 
-When there is no `.git` directory the script of the picked command is written to `${XX_TMP}/xx-<uid>/<hash of pwd>.sh`. When `XX_TMP` is not defined the standard `TMPDIR` of the system is used, and `/tmp` when that is not defined either, so normally there is nothing to set.
+When there is no `.git` directory the script of the picked command is written to `${XX_TMP}/xx-<uid>/<hash of pwd>.sh`. `XX_TMP` has to be an existing directory (`~/` at the beginning means home directory). When it is not defined the standard `TMPDIR` of the system is used, and `/tmp` when that is not defined either, so normally there is nothing to set.
 
 The directory `xx-<uid>` is created private for the user (`700`), `xx` refuses to use it if it belongs to somebody else or is writable by others. One file per directory, so `xx` running in two directories at once don't overwrite each other's script.
 

@@ -4,7 +4,7 @@
 #
 # This file has to be SOURCED, not executed, register it as an alias in ~/.bashrc or ~/.zshrc:
 #
-#   export XX_BIN="/path/to/xx-bin"
+#   export XX_BIN="/path/to/xx-bin"          ("~/" at the beginning of both paths means home directory)
 #   export XX_NODE_BINARY="/path/to/node"
 #   alias xx='source "/path/to/xx.sh"'
 #
@@ -85,16 +85,23 @@ xx.sh error: env var XX_BIN is not defined
   It has to contain path to the xx binary (the file downloaded together with xx.sh from
   https://github.com/stopsopa/xx/releases), add to ~/.bashrc or ~/.zshrc, e.g.:
 
-    export XX_BIN="\${HOME}/.xx/xx-bin"
+    export XX_BIN="~/.xx/xx-bin"
 
 EEE
     return 1
   fi
 
-  if [[ ! -f "${XX_BIN}" ]]; then
+  # "~/" at the beginning means home directory. The shell doesn't expand ~ inside of quotes
+  # (export XX_BIN="~/.xx/xx-bin"), so it is done here. Not local: __xx_main uses it too.
+  __XX_BIN_PATH="${XX_BIN}"
+  if [[ "${__XX_BIN_PATH}" == "~/"* ]]; then
+    __XX_BIN_PATH="${HOME}/${__XX_BIN_PATH:2}"
+  fi
+
+  if [[ ! -f "${__XX_BIN_PATH}" ]]; then
     cat <<EEE >&2
 
-xx.sh error: XX_BIN=>${XX_BIN}< - file doesn't exist
+xx.sh error: XX_BIN=>${__XX_BIN_PATH}< - file doesn't exist
 
   download the xx binary from https://github.com/stopsopa/xx/releases (version ${__XX_VERSION})
   or fix the path in XX_BIN
@@ -103,24 +110,24 @@ EEE
     return 1
   fi
 
-  if [[ ! -x "${XX_BIN}" ]]; then
+  if [[ ! -x "${__XX_BIN_PATH}" ]]; then
     cat <<EEE >&2
 
-xx.sh error: XX_BIN=>${XX_BIN}< - file is not executable, run:
+xx.sh error: XX_BIN=>${__XX_BIN_PATH}< - file is not executable, run:
 
-    chmod a+x "${XX_BIN}"
+    chmod a+x "${__XX_BIN_PATH}"
 
 EEE
     return 1
   fi
 
   local __XX_ACTUAL
-  __XX_ACTUAL="$(__xx_md5 "${XX_BIN}")"
+  __XX_ACTUAL="$(__xx_md5 "${__XX_BIN_PATH}")"
 
   if [[ -z "${__XX_ACTUAL}" ]]; then
     cat <<EEE >&2
 
-xx.sh error: can't compute md5 of XX_BIN=>${XX_BIN}<, neither "md5sum" nor "md5" command found
+xx.sh error: can't compute md5 of XX_BIN=>${__XX_BIN_PATH}<, neither "md5sum" nor "md5" command found
 
 EEE
     return 1
@@ -129,11 +136,11 @@ EEE
   if [[ " ${__XX_BIN_MD5} " != *" ${__XX_ACTUAL} "* ]]; then
     # only to make the message more helpful: what does the file say about itself
     local __XX_BIN_VERSION
-    __XX_BIN_VERSION="$("${XX_BIN}" --version < /dev/null 2>&1 | head -n 1)"
+    __XX_BIN_VERSION="$("${__XX_BIN_PATH}" --version < /dev/null 2>&1 | head -n 1)"
 
     cat <<EEE >&2
 
-xx.sh error: XX_BIN=>${XX_BIN}< - it is not the xx binary this xx.sh was built with
+xx.sh error: XX_BIN=>${__XX_BIN_PATH}< - it is not the xx binary this xx.sh was built with
 
   md5 of the file      : ${__XX_ACTUAL}
   md5 xx.sh expects    : ${__XX_BIN_MD5// / or }
@@ -271,7 +278,7 @@ __xx_main() {
   # these only print something, nothing to execute afterwards
   case "${1}" in
     --help|-h|--version|-V|--list|--init|--esm|--gen)
-      "${XX_BIN}" "${@}" < /dev/null
+      "${__XX_BIN_PATH}" "${@}" < /dev/null
       return "${?}"
       ;;
   esac
@@ -280,7 +287,7 @@ __xx_main() {
   # The menu doesn't need it, it talks to /dev/tty directly.
   local __XX_GENERATED
   local __XX_CODE
-  __XX_GENERATED="$("${XX_BIN}" "${@}" < /dev/null)"
+  __XX_GENERATED="$("${__XX_BIN_PATH}" "${@}" < /dev/null)"
   __XX_CODE="${?}"
 
   # drop the name of the command (or --), what is left are arguments for the script

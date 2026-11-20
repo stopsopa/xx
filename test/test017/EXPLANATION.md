@@ -9,6 +9,8 @@ The build (`bash/embed.sh`, called by `compile.sh` and by the release workflow) 
 - `XX_BIN` points to a real xx binary which is not the one `xx.sh` was built with (a copy with one line appended): the error shows version of `xx.sh` and version of the binary,
 - `xx.sh` is the source file from the repository, with no md5 embedded.
 
+`~/` at the beginning of `XX_BIN` means home directory.
+
 A wrapper built for several binaries (what a release has: one `xx.sh` for all platforms) accepts each of them.
 
 The test also guards the two lines `bash/embed.sh` rewrites (`__XX_VERSION="dev"` and `__XX_BIN_MD5=""` in `xx.sh` of the repository).

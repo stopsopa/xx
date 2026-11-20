@@ -5,7 +5,8 @@ pub const ENV_BINARY: &str = "XX_NODE_BINARY";
 pub const ENV_OPTIONS: &str = "XX_NODE_OPTIONS";
 
 const HOW_TO_SET: &str = "
-  It has to contain absolute path to node binary, the real one, not a shim of a version manager.
+  It has to contain absolute path to node binary, the real one, not a shim of a version manager
+  (\"~/\" at the beginning means home directory).
   Add to ~/.bashrc or ~/.zshrc, e.g.:
 
     export XX_NODE_BINARY=\"/usr/local/bin/node\"
@@ -59,13 +60,13 @@ fn looks_like_version(text: &str) -> bool {
 /**
  * Executed on every run of xx, before anything else:
  *
- *   1. XX_NODE_BINARY has to be defined
+ *   1. XX_NODE_BINARY has to be defined ("~/" at the beginning means home directory)
  *   2. has to point to existing file
  *   3. "<file> --version" has to answer like node does: vMAJOR.MINOR.PATCH
  */
-pub fn resolve() -> Result<Node, String> {
+pub fn resolve(home: Option<&Path>) -> Result<Node, String> {
     let path = match std::env::var(ENV_BINARY) {
-        Ok(v) if !v.trim().is_empty() => v,
+        Ok(v) if !v.trim().is_empty() => crate::locate::expand_tilde(v.trim(), home),
         _ => {
             return Err(format!(
                 "env var {ENV_BINARY} is not defined, xx needs node to load the config (xx.ts, xx.js, xx.mjs, xx.cjs).\n{HOW_TO_SET}"

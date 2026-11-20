@@ -48,6 +48,25 @@ pub fn git_dir(cwd: &Path) -> Option<PathBuf> {
     None
 }
 
+/**
+ * "~/something" -> "<home>/something", "~" -> "<home>". Anything else is returned untouched.
+ *
+ * Paths given in env vars can start with ~/ : the shell doesn't expand it inside of quotes
+ * (export XX_NODE_BINARY="~/bin/node"), so xx does.
+ */
+pub fn expand_tilde(value: &str, home: Option<&Path>) -> String {
+    let Some(home) = home else {
+        return value.to_string();
+    };
+    if value == "~" {
+        return home.to_string_lossy().to_string();
+    }
+    match value.strip_prefix("~/") {
+        Some(rest) => home.join(rest).to_string_lossy().to_string(),
+        None => value.to_string(),
+    }
+}
+
 fn find_config(dir: &Path) -> Option<PathBuf> {
     EXTENSIONS
         .iter()
@@ -218,6 +237,17 @@ mod tests {
         fs::write(d.join("cwd/xx.cjs"), "").unwrap();
         let l = locate(&d.join("cwd"), Some(&d.join("home")), &fb()).unwrap();
         assert_eq!(l.generated, d.join("cwd/../real/xx_generated.sh"));
+    }
+
+    #[test]
+    fn tilde() {
+        let home = Path::new("/home/me");
+        assert_eq!(expand_tilde("~/bin/node", Some(home)), "/home/me/bin/node");
+        assert_eq!(expand_tilde("~", Some(home)), "/home/me");
+        assert_eq!(expand_tilde("/abs/~/x", Some(home)), "/abs/~/x");
+        assert_eq!(expand_tilde("~other/x", Some(home)), "~other/x");
+        assert_eq!(expand_tilde("rel/x", Some(home)), "rel/x");
+        assert_eq!(expand_tilde("~/x", None), "~/x");
     }
 
     #[test]
