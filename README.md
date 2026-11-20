@@ -49,6 +49,7 @@ cat <<EEE >> ~/.zshrc
 # xx - https://github.com/stopsopa/xx
 export XX_BIN="~/.xx/xx-bin"
 export XX_NODE_BINARY="$(node -e 'const p = process.execPath, h = require("os").homedir(); console.log(p.startsWith(h + "/") ? "~" + p.slice(h.length) : p)')"
+export XX_NODE_OPTIONS=
 alias xx='source ~/.xx/xx.sh'
 EEE
 ```
@@ -59,6 +60,7 @@ cat <<EEE >> ~/.bashrc
 # xx - https://github.com/stopsopa/xx
 export XX_BIN="~/.xx/xx-bin"
 export XX_NODE_BINARY="$(node -e 'const p = process.execPath, h = require("os").homedir(); console.log(p.startsWith(h + "/") ? "~" + p.slice(h.length) : p)')"
+export XX_NODE_OPTIONS=
 alias xx='source ~/.xx/xx.sh'
 EEE
 ```
