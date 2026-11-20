@@ -35,6 +35,10 @@ jobs:
       - name: Compile binary
         run: /bin/bash compile.sh
 
+      # esbuild for transpile.sh, test.sh generates templates/xx.js xx.mjs xx.cjs with it
+      - name: Install npm dependencies
+        run: npm ci
+
       - name: Run unit and E2E tests
         run: /bin/bash test.sh
 

@@ -6,3 +6,11 @@
 /validateenv.log
 
 __pycache__/
+
+# npm ci (esbuild for transpile.sh)
+/node_modules/
+
+# generated from templates/xx.ts by transpile.sh
+/templates/xx.js
+/templates/xx.mjs
+/templates/xx.cjs

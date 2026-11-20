@@ -34,8 +34,10 @@ use std::process::{exit, Command as Process, Stdio};
 const VERSION: &str = env!("XX_BUILD_VERSION");
 const HOMEPAGE: &str = "https://github.com/stopsopa/xx";
 
-// source of truth for --init: json with urls of templates, one for each flavour of the config
-const INIT_CONFIG: &str = "https://raw.githubusercontent.com/stopsopa/xx/main/init.json";
+// source of truth for --init: json with urls of templates, one for each flavour of the config.
+// GitHub Pages of the repository: xx.js, xx.mjs and xx.cjs exist only there,
+// generated from templates/xx.ts by transpile.sh when Pages are published
+const INIT_CONFIG: &str = "https://stopsopa.github.io/xx/init.json";
 const ENV_INIT_CONFIG: &str = "XX_INIT_CONFIG";
 
 const EXIT_RUN: i32 = 0;
@@ -312,8 +314,8 @@ fn fetch(source: &str, base: &Path) -> Result<Vec<u8>, String> {
  *
  * Templates are never embedded in the binary, two steps are done:
  *
- * - json is taken from XX_INIT_CONFIG (default: init.json published on github, the source
- *   of truth), shape: `{"ts": "...", "js": "...", "mjs": "...", "cjs": "..."}`
+ * - json is taken from XX_INIT_CONFIG (default: init.json published on GitHub Pages of the
+ *   repository, the source of truth), shape: `{"ts": "...", "js": "...", "mjs": "...", "cjs": "..."}`
  * - template is taken from location found under the key of requested kind
  *
  * In both steps location is url (http, https) or path of local file.

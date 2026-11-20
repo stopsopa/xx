@@ -1,0 +1,9 @@
+{
+  "name": "xx-dev",
+  "private": true,
+  "description": "development dependencies of https://github.com/stopsopa/xx - only for transpile.sh (templates/xx.ts -> xx.js, xx.mjs, xx.cjs)",
+  "type": "module",
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

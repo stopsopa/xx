@@ -1,6 +1,6 @@
 {
-  "ts": "https://raw.githubusercontent.com/stopsopa/xx/main/templates/xx.ts",
-  "js": "https://raw.githubusercontent.com/stopsopa/xx/main/templates/xx.js",
-  "mjs": "https://raw.githubusercontent.com/stopsopa/xx/main/templates/xx.mjs",
-  "cjs": "https://raw.githubusercontent.com/stopsopa/xx/main/templates/xx.cjs"
+  "ts": "https://stopsopa.github.io/xx/templates/xx.ts",
+  "js": "https://stopsopa.github.io/xx/templates/xx.js",
+  "mjs": "https://stopsopa.github.io/xx/templates/xx.mjs",
+  "cjs": "https://stopsopa.github.io/xx/templates/xx.cjs"
 }

@@ -16,7 +16,7 @@ Requirements added after the plan was written, all implemented:
 | `XX_NODE_BINARY` required, really checked on every run | `src/node.rs`: file exists, `--version` answers `vX.Y.Z`. No fallback to `node` from `PATH`. `test/test022`. |
 | `XX_NODE_OPTIONS` | Replaces `NODE_OPTIONS` of node started by `xx`; not defined = `NODE_OPTIONS` untouched (the plan cleared it always). `test/test022`. |
 | `xx.ts`, `xx.js`, `xx.mjs`, `xx.cjs` | Searched in this order in `.git/`, then `./`, then `~/`. Loaded with `import()`, node decides the format. `test/test019` - `test/test021`. |
-| `--init [ts|js|mjs|cjs]`, `--esm [path]`, `XX_INIT_CONFIG` | Templates in `templates/`, listed in `init.json`; json and templates can be URLs or local paths. Nothing embedded in the binary. `test/test016`. |
+| `--init [ts|js|mjs|cjs]`, `--esm [path]`, `XX_INIT_CONFIG` | Only `templates/xx.ts` is written by hand, `transpile.sh` (esbuild) generates the other three when GitHub Pages are published; all four are listed in `init.json`, downloaded from Pages; json and templates can be URLs or local paths. Nothing embedded in the binary. `test/test016`. |
 | `XX_BIN` required, wrapper accepts only its own binary | `__xx_check_bin` in `xx.sh` compares md5 of the binary with hashes embedded by `bash/embed.sh` (`compile.sh`, release workflow). `test/test017`, `test/test023`. |
 | `--lock` / `--unlock` / `--copy` | Dropped completely (the plan forwarded them to the old script). |
 | `compile.sh` prints paths of binaries on stdout | Everything else goes to stderr. |

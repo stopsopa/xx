@@ -268,7 +268,7 @@ Used by `xx --init` and `xx --esm`. URL (`http://`, `https://`) or path (also st
 - Each value is again a URL or a path of a local file (`file://` prefix is accepted). URL is downloaded with `curl` (`wget` when `curl` is not installed), local file is copied.
 - Relative path inside of the json is relative to the json. Relative `XX_INIT_CONFIG` is relative to the current directory.
 - Only the key of the requested kind has to be present.
-- Default: `https://raw.githubusercontent.com/stopsopa/xx/main/init.json`. Templates are never embedded in the binary, what is published on GitHub is the source of truth, every `--init` gets the current version.
+- Default: `https://stopsopa.github.io/xx/init.json` (GitHub Pages of the repository). Templates are never embedded in the binary, what is published there is the source of truth, every `--init` gets the current version. Only `xx.ts` is written by hand, `xx.js`, `xx.mjs` and `xx.cjs` are generated from it when Pages are published.
 
 ### `XX_CONFIRM`
 

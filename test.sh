@@ -13,6 +13,19 @@ if [[ ! -f "${BIN}" || ! -f "${XX_SH_PATH}" ]]; then
   exit 1
 fi
 
+echo "${YELLOW}=== Generating templates (transpile.sh) ===${RESET}"
+echo ""
+
+# templates/xx.js xx.mjs xx.cjs are not committed, tests of --init need them
+/bin/bash "${DIR}/transpile.sh"
+
+if [[ "${?}" -ne 0 ]]; then
+  echo "${0} error: transpile.sh failed"
+  exit 1
+fi
+
+echo ""
+
 TOTAL=0
 PASSED=0
 FAILED=0

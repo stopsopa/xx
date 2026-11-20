@@ -28,6 +28,7 @@ rustup target add aarch64-apple-darwin
 - **node 22.18+** - the `xx` binary runs `node` to load the config, so it is needed to use `xx` and to run the tests. Tests load `xx.ts`, that is where the minimal version comes from (node strips types on its own since 22.18). Also `tag.sh` uses it for the patch / minor / major picker (`bash/file/fuzzy.ts`).
 - **zsh** - tests run the wrapper in bash and in zsh.
 - **python3** - only `test/test018` (creates a pseudo terminal to press real Ctrl+C).
+- **npm** - `npm ci` installs esbuild (the only dependency, `package.json`), used by `transpile.sh` to generate the templates. `test.sh` needs it.
 - **curl** or **wget** - `xx --init` downloads the template with it (tests don't, they use local files).
 
 ### Verify toolchain
@@ -80,11 +81,12 @@ This repository has its own `xx.cjs`, so inside of the clone `xx` shows: `help`,
 ## Running Tests Locally
 
 ```sh
+npm ci                    # once
 /bin/bash compile.sh
 /bin/bash test.sh
 ```
 
-`test.sh` runs:
+`test.sh` first generates the templates (`transpile.sh`), then runs:
 
 1. `cargo test` - unit tests of pure logic (sorting, `<% name %>`, lookup of the config, menu rows, shape of node version).
 2. every `test/test*/test.sh` - end to end tests of the compiled binary and of `xx.sh`. Each directory has `EXPLANATION.md` saying what the test proves.
@@ -116,8 +118,10 @@ src/menu.rs        menu and "Run command?" question, real terminal and scripted 
 src/range.rs       block indicator in front of menu rows
 build.rs           version: XX_VERSION env, otherwise "dev"
 xx.sh              source of the wrapper (sourced by the alias, executes the generated script)
-init.json          default XX_INIT_CONFIG: where xx --init finds templates (github is the source of truth)
-templates/         xx.ts xx.js xx.mjs xx.cjs downloaded by xx --init
+init.json          default XX_INIT_CONFIG: where xx --init finds templates (GitHub Pages are the source of truth)
+templates/         xx.ts, the template downloaded by xx --init (xx.js xx.mjs xx.cjs are generated, not committed)
+transpile.sh       generates templates/xx.js xx.mjs xx.cjs from templates/xx.ts (esbuild, bash/transpile.mjs)
+package.json       only dev dependency: esbuild
 xx.cjs             xx menu of this repository
 bash/              detect_arch.sh, embed.sh (md5 + version into xx.sh), release_notes.sh, file/fuzzy.ts
 test/              end to end tests
@@ -203,7 +207,7 @@ After the first release check that `README.md` → Installation still matches wh
 
 ## GitHub Pages
 
-`.github/workflows/pages.yml` publishes the root directory of the repository to https://stopsopa.github.io/xx/ on every push to `main` (and on demand: Actions → GitHub Pages → Run workflow). Nothing is built, files are copied as they are, without `.git`, `.github`, `target`, `bin`, `node_modules`, `vendor` and `__links`.
+`.github/workflows/pages.yml` publishes the root directory of the repository to https://stopsopa.github.io/xx/ on every push to `main` (and on demand: Actions → GitHub Pages → Run workflow). Before that it runs `transpile.sh`, so `templates/xx.js`, `xx.mjs` and `xx.cjs` are published too. The rest of the files are copied as they are, without `.git`, `.github`, `target`, `bin`, `node_modules`, `vendor` and `__links`.
 
 One time setup: repository **Settings → Pages → Build and deployment → Source: GitHub Actions**. Until that is switched on the workflow fails on the deploy step.
 
@@ -211,6 +215,23 @@ There is no `index.html` in the repository, so the root address shows 404, files
 
 ## Templates for `xx --init`
 
-`xx --init [ts|js|mjs|cjs]` first downloads `init.json` (`https://raw.githubusercontent.com/stopsopa/xx/main/init.json`, can be replaced with `XX_INIT_CONFIG`), then the template listed there under the requested key (`templates/xx.<kind>` on `main`). Nothing is embedded in the binary, so changing a template means only: edit the file in `templates/`, push to `main`. No release needed.
+Only `templates/xx.ts` is maintained by hand and committed. `templates/xx.js`, `templates/xx.mjs` and `templates/xx.cjs` are generated from it and ignored by git:
 
-The four templates have the same commands, they differ in the header, in `export default` / `module.exports` and `xx.ts` has types. When you change one, change all four.
+```sh
+npm ci                      # once, installs esbuild
+/bin/bash transpile.sh      # prints paths of the three generated files
+```
+
+`transpile.sh` (the work is done in `bash/transpile.mjs`):
+
+- esbuild removes the types; `export default` stays for `xx.js` / `xx.mjs` and becomes `module.exports =` for `xx.cjs`.
+- esbuild also removes comments, so the comment at the top of `xx.ts` is carried over by hand: its first paragraph describes `xx.ts` itself and is replaced with a description of the generated flavour, the rest is copied. Comments further down in the code are not in the generated files. Text inside of the shell scripts (template literals) is untouched.
+- at the end every generated file is loaded and has to return exactly the same commands as `xx.ts`, otherwise the script fails.
+- `xx.ts` has to keep exactly one export: `export default <function>`.
+
+Who runs it:
+
+- `.github/workflows/pages.yml` just before publishing, so the generated files exist only on GitHub Pages.
+- `test.sh` at the start, `test/test016` uses the generated files (it also fails if one of them gets committed).
+
+`xx --init [ts|js|mjs|cjs]` first downloads `init.json` (`https://stopsopa.github.io/xx/init.json`, can be replaced with `XX_INIT_CONFIG`), then the template listed there under the requested key (`https://stopsopa.github.io/xx/templates/xx.<kind>`). Nothing is embedded in the binary, so changing the template means only: edit `templates/xx.ts`, push to `main`, the Pages workflow publishes all four. No release needed. GitHub Pages can serve the old version for a few minutes after the deployment.

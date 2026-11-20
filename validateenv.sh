@@ -7,7 +7,8 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 #   - cargo   (Rust package manager / build tool)
 #   - rustfmt (Rust code formatter)
 #   - clippy  (Rust linter)
-#   - node    (xx binary runs node to load xx.cjs, tests need it too)
+#   - node    (xx binary runs node to load the config, tests need it too; 22.18+ because of xx.ts)
+#   - npm     (npm ci installs esbuild for transpile.sh, which generates templates/xx.js xx.mjs xx.cjs)
 #   - zsh, python3 (only for tests: wrapper is tested in bash and zsh, Ctrl+C test needs pseudo terminal)
 #
 # Also runs `cargo fetch` to confirm dependencies resolve correctly.
@@ -54,6 +55,7 @@ check_tool cargo         --version
 check_tool rustfmt       --version
 check_tool clippy-driver --version
 check_tool node          --version
+check_tool npm           --version
 check_tool zsh           --version
 check_tool python3       --version
 
