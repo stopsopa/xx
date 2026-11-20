@@ -142,10 +142,18 @@ Described at the top of `src/main.rs` and `xx.sh`, covered by `test/test017` and
 
 ### CI/CD Workflow Overview
 
-GitHub Actions pipeline `.github/workflows/rust.yml` handles automated building, testing, and release creation:
-- **Pushing code to any branch** (or opening a PR) triggers the CI test suite (`compile.sh` and `test.sh`) on Linux x64 (`ubuntu-latest`) and builds cross-platform binaries to ensure build stability. It does **not** create any release.
-- **Pushing a git tag** triggers the CI test suite, compiles all binaries, and publishes a new **GitHub Release**.
+There is one workflow, `.github/workflows/rust.yml`, so one push gives one run. What it does depends on what was pushed:
+
+| Pushed | Jobs |
+| --- | --- |
+| any branch, any PR | `test` → `build-matrix` (tests on Linux x64, then binaries for all platforms to prove they build) |
+| `main` | the same, and after `test` passes: `pages-build` → `pages-deploy` (GitHub Pages) |
+| a tag | the same as any branch, and after `build-matrix`: `release` (GitHub Release) |
+
+- Nothing is published when tests fail: neither Pages nor a release.
+- Jobs which don't apply are shown as skipped in the run.
 - Commit with `[no ci]` in the message doesn't trigger the pipeline.
+- Actions → "CI, Release & Pages" → Run workflow starts it by hand (on `main` it republishes Pages).
 
 ### Target Platforms Built in CI/CD
 - **macOS arm64** (`aarch64-apple-darwin` → `xx-darwin-arm64`)
@@ -207,7 +215,7 @@ After the first release check that `README.md` → Installation still matches wh
 
 ## GitHub Pages
 
-`.github/workflows/pages.yml` publishes the root directory of the repository to https://stopsopa.github.io/xx/ on every push to `main` (and on demand: Actions → GitHub Pages → Run workflow). Before that it runs `transpile.sh`, so `templates/xx.js`, `xx.mjs` and `xx.cjs` are published too. The rest of the files are copied as they are, without `.git`, `.github`, `target`, `bin`, `node_modules`, `vendor` and `__links`.
+Jobs `pages-build` and `pages-deploy` of `.github/workflows/rust.yml` publish the root directory of the repository to https://stopsopa.github.io/xx/ on every push to `main`, after the tests passed (and on demand: Actions → CI, Release & Pages → Run workflow). Before that it runs `transpile.sh`, so `templates/xx.js`, `xx.mjs` and `xx.cjs` are published too. The rest of the files are copied as they are, without `.git`, `.github`, `target`, `bin`, `node_modules`, `vendor` and `__links`.
 
 One time setup: repository **Settings → Pages → Build and deployment → Source: GitHub Actions**. Until that is switched on the workflow fails on the deploy step.
 
@@ -231,7 +239,7 @@ npm ci                      # once, installs esbuild
 
 Who runs it:
 
-- `.github/workflows/pages.yml` just before publishing, so the generated files exist only on GitHub Pages.
+- job `pages-build` of `.github/workflows/rust.yml` just before publishing, so the generated files exist only on GitHub Pages.
 - `test.sh` at the start, `test/test016` uses the generated files (it also fails if one of them gets committed).
 
 `xx --init [ts|js|mjs|cjs]` first downloads `init.json` (`https://stopsopa.github.io/xx/init.json`, can be replaced with `XX_INIT_CONFIG`), then the template listed there under the requested key (`https://stopsopa.github.io/xx/templates/xx.<kind>`). Nothing is embedded in the binary, so changing the template means only: edit `templates/xx.ts`, push to `main`, the Pages workflow publishes all four. No release needed. GitHub Pages can serve the old version for a few minutes after the deployment.

@@ -8,7 +8,7 @@
 #   /bin/bash transpile.sh
 #
 # Generated files are not committed (.gitignore). They are created:
-#   - by .github/workflows/pages.yml just before publishing GitHub Pages,
+#   - by .github/workflows/rust.yml (jobs pages-build, pages-deploy) just before publishing GitHub Pages,
 #     that is where "xx --init" downloads them from (see init.json)
 #   - by test.sh, tests of --init use them
 #

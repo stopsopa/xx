@@ -1,370 +1,188 @@
-# xx in Rust — implementation plan
+# xx — design
 
-Rewrite of `pages/bash/xx` (currently `xx.sh` + `xx.node.cjs` bundled with inquirer) as a Rust binary driven by a thin shell wrapper.
+Rewrite of `stopsopa.github.io/pages/bash/xx` (`xx.sh` + `xx.node.cjs` bundled with inquirer) as a Rust binary driven by a thin shell wrapper.
 
-## 0. Status: implemented
-
-Built: option B from section 10 question 5 (Rust binary that runs the installed `node` to load the config). The rest of this document is the original plan and is kept as history; **where it differs from this section, this section and `README.md` / `DEV.md` are right.**
-
-Requirements added after the plan was written, all implemented:
-
-| Requirement | How |
-| --- | --- |
-| Ctrl+C with `source: true` must not close the shell | `__xx_source` in `xx.sh`; needs a different trick in zsh and in bash, see the comment there. Side effect: `set -e` is neutralised in sourced scripts. `test/test018`. |
-| Arguments reach the final script | `xx <name> [args]`, and new `xx -- [args]` for the menu. `test/test008`, `test/test010`. |
-| Stdin reaches the final script | Binary and node get `/dev/null` as stdin, menu reads keys from `/dev/tty`. `test/test009`. |
-| `XX_NODE_BINARY` required, really checked on every run | `src/node.rs`: file exists, `--version` answers `vX.Y.Z`. No fallback to `node` from `PATH`. `test/test022`. |
-| `XX_NODE_OPTIONS` | Replaces `NODE_OPTIONS` of node started by `xx`; not defined = `NODE_OPTIONS` untouched (the plan cleared it always). `test/test022`. |
-| `xx.ts`, `xx.js`, `xx.mjs`, `xx.cjs` | Searched in this order in `.git/`, then `./`, then `~/`. Loaded with `import()`, node decides the format. `test/test019` - `test/test021`. |
-| `--init [ts|js|mjs|cjs]`, `--esm [path]`, `XX_INIT_CONFIG` | Only `templates/xx.ts` is written by hand, `transpile.sh` (esbuild) generates the other three when GitHub Pages are published; all four are listed in `init.json`, downloaded from Pages; json and templates can be URLs or local paths. Nothing embedded in the binary. `test/test016`. |
-| `XX_BIN` required, wrapper accepts only its own binary | `__xx_check_bin` in `xx.sh` compares md5 of the binary with hashes embedded by `bash/embed.sh` (`compile.sh`, release workflow). `test/test017`, `test/test023`. |
-| `--lock` / `--unlock` / `--copy` | Dropped completely (the plan forwarded them to the old script). |
-| `compile.sh` prints paths of binaries on stdout | Everything else goes to stderr. |
-| GitHub Pages from the root directory | `.github/workflows/pages.yml`. |
-
-Answers to the open questions (section 10):
-
-1. Script without `.git`: switched to `${XX_TMP}/xx-<uid>/<hash of pwd>.sh`.
-2. Lookup: unchanged, only `.git/` and the current directory (then home), no walking up.
-3. Merging `~/xx.*` into local menus: undecided, not done. `~/xx.*` is used only when nothing local exists, as before.
-4. Bugs: fixed. `xx <number>` means the number shown in the menu; `order` is a stable sort with missing = 0.
-5. Engine: node (option B).
-6. `--lock` family: dropped.
-7. Changelog per version: not answered, done as proposed (`## vX.Y.Z` sections).
-8. Intel Mac and musl builds: no, same three targets as securenv.
-
-Other differences from the plan below:
-
-- The loader prints JSON on stdout between two markers (and redirects the config's own stdout to stderr), instead of using file descriptor 3.
-- No `crossterm`; raw mode and key reading are done with `libc` on `/dev/tty` directly.
-- `j` / `k` do not move the selection, because typing filters the list.
-- `command` as a function (lazy) is not implemented.
-- The binary is not searched next to `xx.sh` or in `bin/<arch>/`, `XX_BIN` is the only way.
-- 23 end-to-end tests exist, numbered differently from the table in section 8.
-- `.agents/` and `AGENTS.md` were not copied from securenv.
+This file started as the implementation plan. It now describes **what was built and why**. How to use the tool is in `README.md`, how to work on the repository in `DEV.md`.
 
 ## 1. Decisions in short
 
 | Question | Decision |
 | --- | --- |
-| Config language | **Stay with JavaScript, same `xx.cjs` contract.** Existing files keep working unchanged. |
-| How Rust reads JS | Binary spawns `node` with a tiny embedded loader, which prints the resolved commands as JSON. No bundle, no npm dependencies. |
-| Who draws the menu | Rust (`crossterm`), drawn on `/dev/tty`. |
-| Who executes the script | **The shell wrapper**, not the binary. You are right: it is the only way `source: true` can affect the current shell. |
-| Binary → wrapper protocol | stdout = path of the generated script, exit code = what to do with it (same codes as today: `0`, `55`, `10`, `130`). |
-| `--lock` / `--unlock` / `--copy` | Stay in the old bash script, untouched. Not part of the first version. |
-| Repo layout, tests, CI, releases | Same as `stopsopa/securenv` (section 8), with the few differences xx needs. |
+| Config language | JavaScript / TypeScript, the same contract the old `xx.cjs` had. Old files work unchanged. |
+| How Rust reads the config | The binary starts the installed `node` (`XX_NODE_BINARY`) with a small loader compiled into the binary. The loader prints the commands as JSON. Node is **not** embedded. |
+| Who draws the menu | The binary, on `/dev/tty`, raw mode through `libc`. No terminal library. |
+| Who executes the script | **The shell wrapper `xx.sh`**, never the binary. It is the only way `source: true` can change the current shell. |
+| Binary → wrapper protocol | stdout = path of the generated script, exit code = what to do with it. |
+| Wrapper → binary trust | `xx.sh` accepts only a binary whose md5 was embedded into it by the build. |
+| Repo layout, tests, CI, releases | Modelled on `stopsopa/securenv`, with the differences xx needs (section 9). |
 
-## 2. Why JS stays as the config language
+## 2. Why JS, and why node is still needed
 
-Requirements: inject env vars, complete freedom in generating the final script, backward compatibility with a lot of existing `xx.cjs` files.
+Requirements were: inject env vars, complete freedom in generating the final script, existing `xx.cjs` files keep working.
 
-| Option | Freedom | Existing files work | Runtime dependency | Verdict |
-| --- | --- | --- | --- | --- |
-| `xx.cjs` evaluated by `node` subprocess | full Node (fs, child_process, `require`, `process.env`) | yes, 100% | node | **chosen** |
-| JS engine embedded in the binary (QuickJS via `rquickjs`) | JS language only; `require`, `fs`, `process` must be re-implemented by us | only files that use no Node API | none | later, optional (section 10, question 5) |
-| TOML / YAML + templating | low; multi-line bash in YAML/TOML plus a template language is worse than template literals | no, needs migration | none | rejected |
-| Lua / Rhai / Starlark embedded | good, but a new language to write | no | none | rejected |
+| Option | Verdict |
+| --- | --- |
+| Config evaluated by a `node` subprocess | **chosen**: full Node (`fs`, `child_process`, imports, `process.env`), 100% backward compatible |
+| JS engine embedded in the binary (QuickJS) | rejected for now: no node needed and faster, but `require`, `fs`, `process` would have to be re-implemented and configs using Node APIs would break |
+| TOML / YAML + templating | rejected: cannot do shared snippets, computed keys, spreading; ends up as a worse JS |
+| Lua / Rhai / Starlark | rejected: new language, no backward compatibility |
 
-Reasoning:
-
-- A static format cannot do what `xx.cjs` does today (shared snippets like `enter` / `esc`, colour constants, computed keys, spreading other objects). Any static format ends up needing a template language, which is a worse JS.
-- Node is already required by the tool today, so nothing gets worse.
-- Cost measured on this machine: real `node -e ''` takes about 30 ms; the current bundled inquirer script takes about 60 ms. Through the asdf shim, node startup is about 110 ms, so the shim is the biggest cost, not JS. Section 5 has a way around it.
-- The loader sits behind a trait, so an embedded engine or `xx.toml` can be added later without touching the rest.
-
-### What Rust buys when node is still required
-
-Node is not embedded in the binary; the binary starts the `node` already installed on the machine. With that design the gain from Rust is small:
-
-| | Today (node + inquirer bundle) | Rust + node subprocess | Rust + embedded QuickJS |
-| --- | --- | --- | --- |
-| Start to menu, real node | about 60 ms | about 35 ms | about 5 ms |
-| Start to menu, through asdf shim | about 140 ms | about 115 ms | about 5 ms |
-| Needs node installed | yes | yes | no |
-| Bundle step, npm dependencies | yes (647 KB bundle, inquirer) | no | no |
-| Menu highlight under our control | no (inquirer theme) | yes | yes |
-| Configs using `require("fs")` etc. | work | work | do not work |
-
-The first two columns are measured or derived from measurements on this machine; the QuickJS figure is an estimate, not measured.
-
-What Rust + node gives: no bundle and no inquirer, about 25 ms faster, and a menu that cannot break on a dependency upgrade. All three can also be had by rewriting `xx.node.cjs` as a dependency-free node script with its own raw-mode menu (about 200 lines), without Rust, CI matrix or release binaries.
-
-So Rust is only clearly worth it with the embedded engine: no node needed (containers, fresh machines), and the asdf shim cost disappears. The template and securenv's `xx.cjs` use only plain JS, so they would run in QuickJS as they are. This makes question 5 in section 10 the main decision of the whole plan.
-
-### Config contract (unchanged)
-
-```js
-module.exports = (setup) => ({
-  "command name": {
-    command: `...bash...`, // required, string
-    description: "...",    // optional, defaults to the key
-    confirm: false,        // optional, default TRUE (asks "Run command?")
-    source: true,          // optional, default false (run in current shell)
-    order: 10,             // optional, integer
-  },
-});
-```
-
-Additions that do not break existing files:
-
-- The function may be `async` / return a Promise.
-- The function receives a context instead of `{}`: `{ args, cwd, configPath, gitDir, env }`. Old files ignore it, and `...setup` at the end of the template must keep working, so the context is passed as a **second** argument: `module.exports = (setup, ctx) => ...`, with `setup` staying `{}`.
-- `command` may be a function `(ctx) => string`, evaluated only for the selected command. That allows expensive generation (calling git, reading files) without slowing down the menu. This needs a second node run after selection; see section 5.
-- `xx.mjs` and `xx.ts` are accepted in the same lookup places (node 24 runs both natively). `.cjs` wins if several exist.
+Honest cost of this choice: with node still required, Rust buys little speed (one node start per run, roughly 30–50 ms, stays). What it does buy: no bundle, no npm dependencies at runtime, and a menu fully under our control (the inquirer highlight kept breaking on upgrades).
 
 ## 3. Architecture
 
 ```
-alias xx='source ".../xx.sh"'          (unchanged for the user)
+alias xx='source ~/.xx/xx.sh'
         │
         ▼
-xx.sh  (sourced, bash + zsh)
-  ├─ --lock / --unlock / --copy  → existing bash code, as is
-  └─ everything else:
-        OUT="$(xx-bin "$@")"   ; CODE=$?
+xx.sh  (sourced, bash 3.2+ and zsh)
+  1. __xx_check_bin: XX_BIN defined, exists, executable, md5 on the embedded list
+  2. --help --version --list --init --esm --gen: run the binary, return its code
+  3. everything else:
+        GENERATED="$("${XX_BIN}" "$@" < /dev/null)" ; CODE=$?
             │
             ▼
-        xx-bin (Rust)
-          1. find config + decide generated-script path
-          2. node loader → JSON list of commands
-          3. pick command: menu on /dev/tty, or by name / number
-          4. confirm if needed
-          5. write generated script
-          6. print its path on stdout, exit with code
+        xx binary (Rust)
+          a. check XX_NODE_BINARY (every run except --help / --version)
+          b. find the config, decide where the generated script goes
+          c. node loader → list of commands (sorted by order)
+          d. pick: by name / number from arguments, otherwise menu on /dev/tty
+          e. "Run command?" if needed
+          f. write the script, print its path on stdout, exit with code
         │
         ▼
-  CODE 0   → /bin/bash "$OUT" "$@"
-  CODE 55  → source "$OUT" "$@" ; set +e
-  CODE 10  → generated, not confirmed: print info
-  CODE 130 → cancelled
-  other    → error (binary already printed it on stderr)
+  0   → /bin/bash "${GENERATED}" args
+  55  → __xx_source "${GENERATED}" args      (source: true)
+  10  → written, but the user answered "no": print info, return 10
+  130 → cancelled (Esc, Ctrl+C)
+  other → error, already printed by the binary on stderr
 ```
 
-Why stdout carries the path: the binary, not bash, then owns the config lookup and the generated-file location, and the wrapper shrinks to about 30 lines. The menu is drawn on `/dev/tty`, so capturing stdout with `$(...)` does not interfere.
+Why stdout carries the path: the binary owns config lookup and the location of the generated file, the wrapper only executes. The menu is drawn on `/dev/tty` (or stderr in tests), so capturing stdout with `$(...)` does not interfere.
 
-The wrapper keeps the existing shell detection block (`_DIR` for bash and zsh) and looks for the binary in this order:
+**Arguments.** `xx <name|number> a b` and `xx -- a b` (menu): the wrapper drops the first word and passes the rest to the script as `${1} ${2}`. The binary gets them too, only to hand them to the config as `ctx.args`.
 
-1. `${XX_BIN}` if set,
-2. `${_DIR}/bin/<arch>/xx` (repo checkout after `compile.sh`, same place securenv uses),
-3. `${_DIR}/xx-bin` (installed from a release, next to `xx.sh`).
+**Stdin.** The binary and node are started with `< /dev/null`, the menu and the confirmation read keys from `/dev/tty`. So stdin of `xx` is still untouched when the wrapper runs the script: `echo data | xx name` and `xx name < file` reach the script, also when the command was picked from the menu.
 
-The installed binary is called `xx-bin`, not `xx`, so it never competes with the `xx` alias.
+**`~/` in paths.** `XX_BIN`, `XX_NODE_BINARY`, `XX_INIT_CONFIG` (and paths inside its json) and `XX_TMP` may start with `~/`. The shell does not expand `~` inside quotes, so the wrapper and the binary (`locate::expand_tilde`) do it themselves.
 
-`--lock`, `--unlock` and `--copy` need `gitstorage.cjs` from the `stopsopa.github.io` repo, so they cannot move here cleanly. The new wrapper forwards those three flags to the old script at `${XX_LEGACY_SH}` and prints a clear error when that variable is not set.
+## 4. Contract between `xx.sh` and the binary
 
-## 4. Behaviour to preserve (taken from the current code)
+Two files that must never be mixed between builds, so the wrapper verifies the binary on every call:
 
-Lookup and output paths:
+- `xx.sh` in the repository contains two literal lines: `__XX_VERSION="dev"` and `__XX_BIN_MD5=""`. With the empty list it refuses to work.
+- `bash/embed.sh <version> <output> <binary>...` copies it, replacing those two lines with the version and the md5 of the given binaries. `compile.sh` produces `bin/<arch>/xx.sh` for the one binary it built. The release job produces **one** `xx.sh` carrying the md5 of all three platform binaries; that is why it is a list.
+- On every call the wrapper computes the md5 of `XX_BIN` (`md5sum`, or `md5` on macOS) and continues only if it is on the list. Another program, another version, a rebuilt, modified or half-downloaded binary are all refused.
+- The error shows both hashes plus the version of `xx.sh` and what the file answers to `--version`, because a mismatch usually means "different versions".
 
-| Config found | Generated script |
+`XX_BIN` is required; nothing is searched next to `xx.sh` or anywhere else.
+
+## 5. Config: lookup, formats, loading
+
+Lookup, first found wins. In every directory the order is `xx.ts`, `xx.js`, `xx.mjs`, `xx.cjs`:
+
+| Config in | Generated script |
 | --- | --- |
-| `./.git/xx.cjs` | `./.git/xx_generated.sh` |
-| `./xx.cjs`, `./.git` is a directory | `./.git/xx_generated.sh` |
-| `./xx.cjs`, no `./.git` directory | `~/xx_generated.sh` |
-| `~/xx.cjs` | `~/xx_generated.sh` |
+| `.git/` | `.git/xx_generated.sh` |
+| `./` and `.git` exists | `.git/xx_generated.sh` |
+| `./` without `.git` | `${XX_TMP}/xx-<uid>/<hash of pwd>.sh` |
+| `~/` (only when nothing above exists) | `${XX_TMP}/xx-<uid>/<hash of pwd>.sh` |
 
-Other rules:
+- Only the current directory is checked, no walking up. `~/xx.*` is a fallback, it is not merged into project menus (undecided, see section 10).
+- `.git` being a file (worktree, submodule: `gitdir: path`) is resolved to the real git directory.
+- The temp path replaced `~/xx_generated.sh`, which was shared by all terminals. `XX_TMP` falls back to `TMPDIR`, then `/tmp`. The hash is FNV-1a of `pwd` (stable between versions). The `xx-<uid>` directory is created `700` and refused if it is not owned by the user or is writable by others: in a shared `/tmp` nobody else may be able to swap a script that is about to be executed.
+- A stale generated script is deleted at the start of every run, so a cancelled run can never execute the previous one.
 
-- `<% name %>` in `command` and `description` is replaced with the key.
-- `xx` with no arguments opens the menu; `xx <name|number> [args...]` runs directly. A number is tried before a name. Remaining args become `$1 $2 ...` of the generated script.
-- `confirm` is `true` when missing. `XX_CONFIRM=false` in env skips every confirmation.
-- The script is written even when the user answers "no" (exit 10), and the old generated file is deleted at start.
-- `source: true` → exit 55 → wrapper sources the file, then `set +e`.
-- Ctrl+C → exit 130, cursor restored.
-- Node is started with `NODE_OPTIONS=""` (your environment has an inspector in `NODE_OPTIONS`; without clearing it every run prints "Debugger listening").
-- Menu look: prompt `Select command to run`, rows `█   1 - name` (number right-aligned to 3, the leading block is the position indicator from `lib/range.js`), **selected row in reverse video (`\e[7m`)**, description of the selected row under the list, help line `↑↓ navigate • ⏎ select`, and after choosing a single line `✔ Select command to run <row>`.
+Module format is decided by node, xx adds no rules: `.mjs` always ESM, `.cjs` always CommonJS, `.js` and `.ts` by `"type"` in the nearest `package.json`, and by syntax when there is no `"type"`. `xx.ts` is executed by node itself (type stripping, 22.18+).
 
-Things I found that look like bugs; the plan fixes them unless you say otherwise:
+The loader (`src/loader.js`, compiled in with `include_str!`, run as `node -e <loader> <config> <ctx json>`):
 
-1. `xx --gen` does not work today: `--gen` is passed to node as the command name and fails with "function >--gen< not defined". New: `xx --gen [name] [args]` generates, prints the script and does not run it.
-2. `xx 3` picks the third entry in **file order**, while the menu numbers are shown **after sorting by `order`**. New: the number always means the number shown in the menu.
-3. The `order` comparator is inconsistent (returns `1` whenever either side has no `order`), so the result depends on the JS engine's sort. New rule: stable sort, missing `order` counts as `0`. So `order: 1001` goes to the end and `order: -1` to the top, and files without any `order` keep file order.
-4. `[ -d ./.git ]` fails in git worktrees and submodules, where `.git` is a file. New: the binary resolves the real git dir.
+1. `import()` the config. It works for every flavour; for CommonJS `module.exports` arrives as `default`.
+2. Call the exported function as `fn({}, ctx)` with `ctx = { args, cwd, configPath }` and await it (it may be async). The first argument stays `{}` so `...setup` at the end of old configs keeps working.
+3. Print `Object.entries(result)` as a JSON **array** between two markers. An array, because it keeps exactly the order node saw; object key order is not safe across parsers and JS itself moves integer-like keys to the front.
+4. `process.stdout.write` is redirected to stderr first, so `console.log` in a config cannot corrupt the JSON. Rust takes the text between the last pair of markers.
+5. One node warning is silenced (`MODULE_TYPELESS_PACKAGE_JSON`): it would print four lines on every run for an ESM `xx.js` / `xx.ts` in a project whose `package.json` has no `"type"`.
 
-## 5. The node loader
+Node itself (`src/node.rs`): `XX_NODE_BINARY` is required, no fallback to `PATH` (version-manager shims are slow and depend on the directory). Every run checks that the file exists and that `--version` prints `vX.Y.Z`. `XX_NODE_OPTIONS`, when defined (also empty), replaces `NODE_OPTIONS` for node started by xx; otherwise `NODE_OPTIONS` passes through untouched.
 
-Embedded in the binary with `include_str!`, run as `node -e <loader> <configPath> <ctxJson>`:
+Rules applied in Rust (`src/model.rs`):
 
-1. `require(configPath)` (or `import()` for `.mjs` / `.ts`), check the export is a function.
-2. Call it, await the result, check it is a plain object.
-3. Print `Object.entries(result)` as a JSON **array** on a dedicated file descriptor (fd 3), so `console.log` inside a config cannot corrupt the output. An array, because JSON object key order is not something to rely on across parsers, and JS itself moves integer-like keys (`"1"`, `"2"`) to the front; the array keeps exactly what node saw.
-4. For `command` given as a function, emit `{ "lazy": true }`; after selection the binary runs the loader again with `--resolve <key>`.
+- `command` must be a string. `description` defaults to the key. `<% name %>` in both is replaced with the key.
+- `confirm` missing means ask. `XX_CONFIRM=false` skips every question. `source` uses JS truthiness.
+- `order`: stable sort, missing counts as 0, so negative goes to the top, positive to the bottom, and configs without `order` keep file order. The old comparator was inconsistent.
+- `xx <number>` means the number **shown in the menu** (after sorting); a number is tried before a name. The old tool used the position in the file.
 
-Validation errors (`command` is not a string, export is not a function) are reported by Rust with the config path and key, exit code 1.
+## 6. Menu
 
-Finding node: `XX_NODE` env var if set, otherwise `node` from `PATH`. Setting `XX_NODE` to the real binary (`asdf which node`) skips the asdf shim and saves about 80 ms per run. The binary does not cache the evaluated config, because a config may depend on env and on files.
+- Prompt `Select command to run`, rows `█   1 - name` (block indicator ported from `lib/range.js`), **selected row in reverse video**, description of the selected row under the list, help line, and after choosing a single `✔` line. Redrawn in place, no alternate screen, so scrollback stays intact.
+- Keys: `↑` `↓` (wrap around), `Home` `End` `PgUp` `PgDn`, `Enter`. Typing filters rows: case-insensitive "contains" against `<number> - <name>`, so `12` finds row 12 too. `Backspace` edits the filter, first `Esc` clears it, second `Esc` or `Ctrl+C` cancels (130). `j` / `k` do not navigate, because typing filters.
+- "Run command?": `Enter` / `y` = yes, `n` / `Esc` = no (exit 10, the script is still written), `Ctrl+C` = cancel (130).
+- Without a terminal the menu and the confirmation fail with an explanation instead of hanging (name the command, or `XX_CONFIRM=false`).
+- Key input goes through one trait with two implementations: the real `/dev/tty`, and a scripted one driven by `XX_TEST_KEYS="down,down,enter"` (`XX_TEST_SIZE="60x20"`), which draws to stderr. That makes the menu testable from plain bash.
 
-## 6. Rust crate layout
+## 7. `source: true` and Ctrl+C — the hardest part
 
-securenv is one `src/main.rs`. xx has three separate concerns (config loading, terminal UI, file generation), so it gets a few flat files, no nested modules:
+The problem: a sourced script containing `set -e` runs inside the user's interactive shell. Ctrl+C kills the command the script was waiting for, that counts as a failed command, and `set -e` then closes the whole shell, which is the terminal. Any failing command does the same even without Ctrl+C.
 
-```
-src/
-  main.rs        arg parsing, exit codes, top-level flow, --help / --version / --init / --list / --gen
-  locate.rs      config lookup, git dir resolution, generated-script path
-  loader.rs      node subprocess, JSON parsing, validation
-  loader.js      embedded with include_str!
-  model.rs       Command { name, command, description, confirm, source, order }, <% name %>, sorting
-  menu.rs        select + confirm, key handling, drawing, terminal guard (restores on drop and on panic)
-  range.rs       port of lib/range.js (block characters + easeOutExpo mirror)
-xx-template.cjs  embedded with include_str! for --init
-```
+Consequence accepted: **in `source: true` scripts `set -e` is neutralised** (the script continues after a failed command). Ctrl+C stops the script and returns to the prompt with code 130. `exit` inside such a script still closes the terminal; nothing can be done about that from outside.
 
-Dependencies: `crossterm` (raw mode, keys, colours), `serde` + `serde_json`, `unicode-width` (emoji in names and descriptions). Argument parsing by hand rather than `clap` (which securenv uses), because everything after the command name must pass through to the script untouched. No `ratatui` / `dialoguer` / `inquire`: the menu is about 200 lines and owning it gives exact control over the reverse-video row, which the README says keeps breaking with inquirer upgrades.
+Each shell needed a different trick (`__xx_source` in `xx.sh`, all found by experiment, covered by `test/test018`):
 
-Key input goes through one small trait with two implementations: the real terminal, and a scripted one fed from `XX_TEST_KEYS="down,down,enter"`. That makes the menu testable from plain bash without a pty (section 8).
+- **zsh**: `setopt localoptions localtraps`, `trap 'return 130' INT`, then `if source file; then …; else code=$?; fi`. zsh ignores `set -e` in anything executed as a condition, and the options are reverted when the function returns. `set +e` must be called before returning a non-zero code, otherwise that `return` itself closes the shell.
+- **bash**: the `if source` trick does not suppress errexit in bash 3.2 (macOS), and a trap on `INT` either killed bash 3.2 or hung bash 5. What works is a `DEBUG` trap with `set -T` and `shopt -s extdebug`, run before every command of the script (`__xx_guard`):
+  - it calls `set +e`, so whatever the script switched on is off again before the next command runs;
+  - when the previous command ended with 130 it remembers the interrupt and returns 2, which with `extdebug` means "skip this command and return from the current function / sourced file", repeated until the script is unwound;
+  - bash 5 jumps straight to the prompt on Ctrl+C without passing through the cleanup code, so the guard also cleans up after itself when it notices it is running at a shallower call depth than where it was installed.
+  - `__xx_guard_off` restores the trap and the `-T` / `-E` / `extdebug` settings the shell had before.
 
-### Menu behaviour
+In bash, `echo data | xx name` with `source: true` cannot change the current shell (each part of a pipe runs in a subshell); `xx name < file` can.
 
-- Keys: `↑` `↓` / `k` `j`, `Home` `End`, `PgUp` `PgDn`, `Enter`, `Esc` / `Ctrl+C` (cancel, 130).
-- Typing digits jumps to that number; typing letters filters by substring (new, cheap, and useful with 30+ commands). `Backspace` edits the filter.
-- Window of rows sized to terminal height (inquirer shows 7), wraps around at the ends.
-- Redraw in place with cursor movement, no alternate screen, so the scrollback stays intact and the final `✔` line remains.
-- If stdin/tty is not interactive and no command was named: print the list and exit 1 instead of hanging.
+## 8. `--init`, templates, GitHub Pages
 
-## 7. CLI surface
+- `xx --init [ts|js|mjs|cjs]` (default `ts`) writes `.git/xx.<kind>`, or `./xx.<kind>` without `.git`. `xx --esm [path]` writes the `ts` template to a given file or directory. An existing file is never overwritten.
+- Nothing is embedded in the binary. Two steps: fetch a json (`XX_INIT_CONFIG`, default `https://stopsopa.github.io/xx/init.json`) of the form `{"ts": "...", "js": "...", "mjs": "...", "cjs": "..."}`, then fetch the template listed under the requested key. Both the json and the templates can be URLs (`curl`, then `wget`) or local paths; relative paths in a local json are relative to that json. Local paths are what the tests use.
+- Only `templates/xx.ts` is written by hand and committed. `transpile.sh` (esbuild, `bash/transpile.mjs`) generates `xx.js`, `xx.mjs`, `xx.cjs`: types removed, `export default` kept or turned into `module.exports =`. esbuild drops comments, so the comment block at the top of `xx.ts` is carried over by the script. Every generated file is then loaded and must return exactly what `xx.ts` returns.
+- The generated files are git-ignored and exist only on GitHub Pages: job `pages-build` runs `transpile.sh`, then publishes the repository root (without `.git`, `.github`, `target`, `bin`, `node_modules`, `vendor`, `__links`). That is why `init.json` points to Pages and not to the `main` branch.
+- Pages are published by two jobs on purpose: `deploy-pages` in the same job as the upload did not see the artifact yet (actions/deploy-pages#451).
+
+## 9. Repository, tests, release
 
 ```
-xx                      menu
-xx <name|number> [...]  run directly, args passed to the script
-xx --gen [name] [...]   generate and print, do not run
-xx --list [--json]      print commands (new; useful for shell completion)
-xx --init               write template to .git/xx.cjs (error if it exists)
-xx --help | --version
-xx --lock | --unlock | --copy   handled by xx.sh, as today
+src/main.rs      arguments, exit codes, --help --version --list --init --esm --gen, main flow
+src/locate.rs    config lookup, git dir, generated-script path, ~/ expansion
+src/node.rs      XX_NODE_BINARY check, XX_NODE_OPTIONS
+src/loader.rs    runs node with loader.js, extracts the JSON
+src/loader.js    the loader (section 5)
+src/model.rs     Command, validation, <% name %>, sorting, pick by number / name
+src/menu.rs      select + confirm, real and scripted terminal
+src/range.rs     block indicator
+build.rs         version: XX_VERSION env, otherwise "dev"
+xx.sh            source of the wrapper          bash/embed.sh    version + md5 into xx.sh
+compile.sh       → bin/<arch>/xx and xx.sh      transpile.sh     templates/xx.ts → js, mjs, cjs
+test.sh          transpile, cargo test, e2e     tag.sh           semver bump, push tag
+validateenv.sh   toolchain check                bash/release_notes.sh  body of the release page
+templates/xx.ts  init.json  xx.cjs (menu of this repository)  package.json (esbuild only)
 ```
 
-## 8. Repository, testing and release (following securenv)
+Dependencies: `libc`, `serde_json`, `unicode-width`. Arguments are parsed by hand, because everything after the command name must pass through untouched.
 
-Everything below is copied from `stopsopa/securenv` with names changed, except where a difference is called out.
+Tests: `cargo test` for pure logic, then 23 end-to-end tests in `test/testNNN/` (each with `EXPLANATION.md`).
 
-### Files
+- Every test gets its own temp `pwd`, `HOME` and `XX_TMP`, because the result depends on all three; `NODE_OPTIONS` and other `XX_*` variables are unset.
+- The wrapper is tested under `/bin/bash` (3.2 on macOS) and `zsh`.
+- `test/test018` is the only one with a real pseudo terminal (`terminal.py`): real Ctrl+C and arrow-key escape sequences in system bash, modern bash and zsh, in parallel. It waits for prompts and expected text, never for a fixed time. One trap worth remembering: a background job of a non-interactive bash ignores SIGINT and the children inherit that, so the script resets SIGINT to default before starting the shell under test.
+- `test/test017` and `test/test023` cover the md5 contract, `test/test019`–`021` the twelve config locations and the `package.json` `"type"` cases, `test/test022` the node variables.
 
-```
-.github/workflows/rust.yml   CI + release
-.agents/ , AGENTS.md         copied from securenv (bash-scripting skill applies to every .sh here)
-.gitignore                   /target/  /bin/  /__links/
-Cargo.toml , Cargo.lock      [profile.release] opt-level = 3, strip = true
-build.rs                     version: XX_VERSION env → exact git tag → "dev"; exposed as XX_BUILD_VERSION
-bash/detect_arch.sh          sets ARCH_DIR, TARGET, XX_BIN="${ROOT}/bin/${ARCH_DIR}/xx"
-bash/file/fuzzy.ts           picker used by tag.sh
-compile.sh                   cargo build --release --target ${TARGET} → bin/<arch>/xx
-test.sh                      runs every test/test*/test.sh, prints PASS/FAIL and totals
-tag.sh                       patch | minor | major → create and push tag
-validateenv.sh               rustc, cargo, rustfmt, clippy, cargo fetch; plus a node check
-README.md  DEV.md  changelog.md  PLAN.md
-src/                         section 6
-xx.sh                        the wrapper users source
-xx-template.cjs
-xx.cjs                       this repo's own menu: help, validateenv, compile, test, publish
-test/
-  .gitignore                 ignores generated scripts
-  test001/
-    xx.cjs                   fixture config
-    test.sh
-    EXPLANATION.md           one or two sentences: what the test proves
-```
+CI is one workflow (`.github/workflows/rust.yml`), so one push gives one run. Always: **test** on Linux x64 (node 24, zsh, `npm ci`, `compile.sh`, `test.sh`); **build-matrix** for `aarch64-apple-darwin`, `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` (the last through `cross`), with `XX_VERSION` set to the tag only for tag builds; then only for a tag **release**, and only for `main` (after **test**) **pages-build** → **pages-deploy**. Nothing is published when tests fail.
 
-`--help` and `--version` print the build version and `https://github.com/stopsopa/xx`, as securenv does.
+Release: `/bin/bash tag.sh patch|minor|major` pushes a `vX.Y.Z` tag and CI does the rest. The release job builds the single `xx.sh` with `bash/embed.sh`, writes `SHA256SUMS.txt` for the binaries and `xx.sh`, and generates the page: the `## vX.Y.Z` section of `changelog.md`, then for each platform a block that downloads the binary (as `xx-bin`) and `xx.sh` to the current directory and verifies both checksums. `README.md` → Installation continues from there.
 
-### Tests
+## 10. Not done, undecided
 
-Same shape as securenv: each `test/testNNN/test.sh` runs the compiled binary from `bin/<arch>/xx`, checks exit code and output with `grep`, prints the command it ran, exits non-zero with `"${0} error: ..."` on failure.
-
-Differences from securenv:
-
-- **`test.sh` runs `cargo test` first.** securenv has no Rust unit tests; xx has pure functions worth testing that way (`range`, sorting, `<% name %>`, path lookup table from section 4).
-- **Each test runs in its own temp directory** (`mktemp -d`, with `HOME` pointed at it too), because the result depends on `pwd`, on `.git` being there or not, and on `~/xx.cjs`.
-- **Menu tests use `XX_TEST_KEYS`** instead of a pty, so they stay plain bash and behave the same on macOS and the Linux CI runner.
-- **Wrapper tests** run `xx.sh` under both `/bin/bash` and `zsh` (`bash -c 'source xx.sh name'`), since `source: true` is the reason the wrapper exists.
-
-Planned tests:
-
-| Test | Proves |
-| --- | --- |
-| 001 | `--list` prints commands from `./xx.cjs`, in file order |
-| 002 | lookup order: `.git/xx.cjs` wins over `./xx.cjs`, which wins over `~/xx.cjs`; error lists all three when none exists |
-| 003 | generated-script path for each row of the table in section 4 |
-| 004 | run by name writes the exact `command` text, stdout is the path, exit 0 |
-| 005 | run by number uses the menu (sorted) number; number is tried before name |
-| 006 | `source: true` → exit 55; through `xx.sh` a variable exported by the script is visible afterwards (bash and zsh) |
-| 007 | `confirm` missing → asks; answer "no" → exit 10 and file still written; `XX_CONFIRM=false` skips |
-| 008 | `<% name %>` replaced in `command` and `description`; description defaults to the key |
-| 009 | `order`: stable sort, missing = 0, negative first |
-| 010 | args after the name reach the script as `$1 $2`, including an arg with spaces; script's exit code (54) comes back through `xx.sh` |
-| 011 | menu via `XX_TEST_KEYS`: down, down, enter picks the third row; wraps at the ends; digit jump; filter by typing |
-| 012 | menu output contains `\e[7m` around the selected row only, and the final `✔` line |
-| 013 | cancel (Esc / Ctrl+C) → exit 130, no script written, cursor-show sequence emitted |
-| 014 | bad configs: export not a function, `command` not a string, syntax error → exit 1 with config path and key in the message |
-| 015 | `console.log` inside the config does not break loading |
-| 016 | `--gen name` writes and prints the script without running it; `--init` writes the template and refuses to overwrite |
-| 017 | `NODE_OPTIONS=--inspect` in env produces no "Debugger listening" output |
-| 018 | worktree: `.git` as a file resolves to the real git dir |
-
-### CI (`.github/workflows/rust.yml`)
-
-Same three jobs and triggers as securenv (every branch, every tag, PRs; `[no ci]` in the commit message skips):
-
-1. **test** on `ubuntu-latest`: `compile.sh`, then `test.sh`. Extra steps for xx: `actions/setup-node` (the loader needs node) and `apt-get install zsh` (wrapper tests).
-2. **build-matrix** (needs test), same targets and naming:
-
-   | Target | Runner | Asset |
-   | --- | --- | --- |
-   | `aarch64-apple-darwin` | `macos-latest` | `xx-darwin-arm64` |
-   | `x86_64-unknown-linux-gnu` | `ubuntu-latest` | `xx-linux-x64` |
-   | `aarch64-unknown-linux-gnu` | `ubuntu-latest` + `cross` | `xx-linux-arm64` |
-
-   `XX_VERSION` is set from `github.ref_name`.
-3. **release** (tags only): collect artifacts, write `SHA256SUMS.txt`, generate release notes, publish with `softprops/action-gh-release`.
-
-### Release page
-
-Same structure as securenv releases: change notes on top, then "Installation & Checksum Verification" with a `curl` / `wget` / checksum block per binary, then the checksum table.
-
-Differences:
-
-- **`xx.sh` is a release asset too**, and is included in `SHA256SUMS.txt`. The binary alone is not usable.
-- **The install block installs two files and prints the alias**:
-
-  ```bash
-  mkdir -p ~/.xx
-  curl -fL -o ~/.xx/xx-bin https://github.com/stopsopa/xx/releases/download/<tag>/xx-darwin-arm64
-  curl -fL -o ~/.xx/xx.sh  https://github.com/stopsopa/xx/releases/download/<tag>/xx.sh
-  chmod a+x ~/.xx/xx-bin
-  echo '<hash>  xx-bin' | (cd ~/.xx && shasum -a 256 -c -)
-  # add to ~/.bashrc or ~/.zshrc:
-  alias xx='source "${HOME}/.xx/xx.sh"'
-  ```
-
-- **Change notes come from `changelog.md` automatically.** In securenv the workflow generates only the install part, and the notes on top of each release look pasted in by hand. Proposal: give `changelog.md` one `## vX.Y.Z` heading per release, and have the release job put the section matching the tag above the install block. `tag.sh` refuses to tag when `changelog.md` has no section for the new version.
-
-### Releasing
-
-Same as securenv: `/bin/bash tag.sh patch|minor|major` (or `xx publish`), CI does the rest. `DEV.md` describes local setup, build, tests and this flow.
-
-## 9. Milestones
-
-1. **Repo skeleton**: copy the securenv scaffolding (section 8 file list), `validateenv.sh`, `compile.sh`, empty `test.sh`, CI running on push. Green pipeline with a binary that only prints `--version`.
-2. **Loading**: `locate.rs`, node loader, `--list`. Tests 001–003, 014, 015, 017.
-3. **Direct run**: `xx <name> [args]`, generation, exit codes, new `xx.sh` wrapper. Tests 004–010.
-4. **Menu**: select + confirm, reverse-video row, range indicator, description line, cancel and terminal restore. Tests 011–013.
-5. **Parity pass**: `--gen`, `--init`, worktree git dir, non-interactive behaviour. Tests 016, 018. Then use it daily next to the old one (`alias xxn=...`) before switching the `xx` alias.
-6. **First release**: release job with `xx.sh` asset and changelog extraction, README, DEV.md, `v1.0.0`.
-7. **Later**: lazy `command` functions, `xx.mjs` / `xx.ts`, shell completion from `--list`, port of the `--lock` family, optional embedded engine.
-
-## 10. Open questions for you
-
-1. **No `.git` directory**: today the script goes to `~/xx_generated.sh`, shared by every terminal, so two `xx` runs at once can overwrite each other. Proposal: `${XX_TMP}/xx-<uid>/<hash of cwd>.sh`. Keep `~/xx_generated.sh` or switch?
-2. **Lookup only in `pwd`**: should `xx` walk up to the repo root so it works from subdirectories? Proposal: yes, walk up to the first directory with `xx.cjs` or `.git`, and `cd` is **not** changed; the script still runs in the directory you are in. This changes which config is picked in nested setups, so it is your call.
-3. **Merging `~/xx.cjs`**: today it is used only when no local config exists. Your screenshot shows a `~/help` entry, which suggests you copy global entries by hand. Should the global file be merged into every menu (local wins on name clash)?
-4. **Bug fixes 2 and 3 in section 4** change numbering and ordering in edge cases. OK to change, or keep the old behaviour exactly?
-5. **Embedded JS engine (the main decision, see "What Rust buys" in section 2)**: three ways to go:
-   - **A.** Rust + embedded QuickJS as the default engine, node used only when a config asks for it (for example a `// xx:node` comment on the first line, or `XX_ENGINE=node`). Node-free and fastest for plain-JS configs; costs a small host API to write (`process.env`, `process.argv`, `process.cwd()`, `console`, `require` of relative `.cjs` / `.json` files).
-   - **B.** Rust + node subprocess only, as the rest of this plan describes. Simplest Rust version, smallest gain.
-   - **C.** No Rust: rewrite `xx.node.cjs` without dependencies. Least work, keeps the node requirement.
-
-   My recommendation is A if you want the Rust project, C if the goal is only to get rid of the bundle and the inquirer highlight problem. Do any of your real `xx.cjs` files use `require` or Node APIs?
-6. **`--lock` family**: forwarding to the old script through `XX_LEGACY_SH` keeps it working but means two installs. Alternative is to copy `gitstorage.cjs` logic here later. Is forwarding fine for now?
-7. **Changelog per version**: OK to switch `changelog.md` to `## vX.Y.Z` headings so release notes are filled in by CI?
-8. **Intel Mac and musl builds**: securenv ships neither. Add `x86_64-apple-darwin` or `*-linux-musl` (Alpine containers), or keep the same three targets?
+- **Merging `~/xx.*` into project menus**: undecided. Today the home config is used only when the project has none.
+- **`--lock` / `--unlock` / `--copy`**: dropped, may come back as a Rust implementation.
+- **`command` as a function** (evaluated only for the selected command): not implemented.
+- **Embedded JS engine** (no node needed): not done, see section 2.
+- **Intel Mac and musl builds**: not wanted, the three targets above are enough.
+- **Walking up to the repository root** to find the config: not wanted, lookup stays in the current directory.
+- `.agents/` and `AGENTS.md` were not copied from securenv.
