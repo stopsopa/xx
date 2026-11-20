@@ -1,0 +1,22 @@
+[package]
+name = "xx"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "xx"
+path = "src/main.rs"
+
+[dependencies]
+# termios raw mode, /dev/tty, terminal size
+libc = "0.2"
+
+# parsing list of commands printed by the node loader
+serde_json = "1"
+
+# width of emoji and wide characters when truncating menu rows
+unicode-width = "0.2"
+
+[profile.release]
+opt-level = 3
+strip = true

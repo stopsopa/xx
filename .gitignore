@@ -1,1 +1,6 @@
+# Rust build artifacts
+/target/
+/bin/
+
 /__links/
+/validateenv.log
