@@ -1,9 +1,11 @@
 
-# xx - menu of shell commands defined in xx.cjs
+# xx - menu of shell commands defined in xx.ts (or xx.js, xx.mjs, xx.cjs)
 # https://github.com/stopsopa/xx
 #
 # This file has to be SOURCED, not executed, register it as an alias in ~/.bashrc or ~/.zshrc:
 #
+#   export XX_BIN="/path/to/xx-bin"
+#   export XX_NODE_BINARY="/path/to/node"
 #   alias xx='source "/path/to/xx.sh"'
 #
 # Usage:
@@ -13,10 +15,10 @@
 #   echo data | xx <name>      stdin is passed to the script
 #   xx --help                  the rest of the options
 #
-# Why it is sourced: command with "source: true" in xx.cjs has to be executed in the current shell
-# (e.g. "source venv/bin/activate"), and only the shell itself can do that. So the work is split:
+# Why it is sourced: command with "source: true" in the config has to be executed in the current
+# shell (e.g. "source venv/bin/activate"), and only the shell itself can do that. So the work is split:
 #
-#   xx binary (rust) - finds xx.cjs, shows the menu, writes script of selected command to a file,
+#   xx binary (rust) - finds the config, shows the menu, writes script of selected command to a file,
 #                      prints path of the file on stdout and says through exit code what to do with it:
 #                          0   run it with /bin/bash
 #                          55  source it in the current shell
@@ -25,57 +27,156 @@
 #                          any other - error (already printed by the binary)
 #   this file        - executes the file
 #
-# Where the binary is searched (first found wins):
-#   ${XX_BIN}                  explicit path
-#   <this dir>/xx-bin          installed from github release
-#   <this dir>/bin/<arch>/xx   cloned repository after: /bin/bash compile.sh
+# Contract between this file and the binary, checked on every call (__xx_check_bin):
+#   1. XX_BIN is required: path to the binary. Nothing is searched or guessed.
+#   2. handshake: "${XX_BIN} --handshake" has to print exactly: xx-handshake:1:<version of the binary>
+#      anything else means XX_BIN points to some other program
+#   3. <version of the binary> has to be equal to __XX_VERSION of this file,
+#      both files come from the same github release
 #
 # Because the file is sourced, it never calls "exit" (that would close your terminal), only "return",
 # and everything is wrapped in functions with local variables to not pollute the shell.
 
-# location of this file, in bash and in zsh
-if [ -n "${ZSH_VERSION}" ]; then
-  __XX_DIR="$( cd "$( dirname "${(%):-%x}" )" && pwd -P )"
-else
-  __XX_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd -P )"
-fi
+# Version of this file. "dev" in the repository (binary built by compile.sh is "dev" too),
+# release workflow replaces it with the tag before the file is attached to the release.
+__XX_VERSION="dev"
 
-# prints path to the binary, returns 1 if not found
-__xx_find_bin() {
-  if [[ -n "${XX_BIN}" ]]; then
-    echo "${XX_BIN}"
+# returns 0 if XX_BIN is the xx binary of the same version as this file, otherwise explains and returns 1
+__xx_check_bin() {
+  if [[ -z "${XX_BIN}" ]]; then
+    cat <<EEE >&2
+
+xx.sh error: env var XX_BIN is not defined
+
+  It has to contain path to the xx binary (the file downloaded together with xx.sh from
+  https://github.com/stopsopa/xx/releases), add to ~/.bashrc or ~/.zshrc, e.g.:
+
+    export XX_BIN="\${HOME}/.xx/xx-bin"
+
+EEE
+    return 1
+  fi
+
+  if [[ ! -f "${XX_BIN}" ]]; then
+    cat <<EEE >&2
+
+xx.sh error: XX_BIN=>${XX_BIN}< - file doesn't exist
+
+  download the xx binary from https://github.com/stopsopa/xx/releases (version ${__XX_VERSION})
+  or fix the path in XX_BIN
+
+EEE
+    return 1
+  fi
+
+  if [[ ! -x "${XX_BIN}" ]]; then
+    cat <<EEE >&2
+
+xx.sh error: XX_BIN=>${XX_BIN}< - file is not executable, run:
+
+    chmod a+x "${XX_BIN}"
+
+EEE
+    return 1
+  fi
+
+  local __XX_EXPECTED="xx-handshake:1:"
+  local __XX_ANSWER
+  __XX_ANSWER="$("${XX_BIN}" --handshake < /dev/null 2> /dev/null)"
+
+  if [[ "${__XX_ANSWER}" != "${__XX_EXPECTED}"* ]]; then
+    cat <<EEE >&2
+
+xx.sh error: XX_BIN=>${XX_BIN}< - it is not the xx binary
+
+  "${XX_BIN} --handshake"
+  was expected to print >${__XX_EXPECTED}<version>< but it printed >${__XX_ANSWER}<
+
+  download the xx binary from https://github.com/stopsopa/xx/releases (version ${__XX_VERSION})
+  or fix the path in XX_BIN
+
+EEE
+    return 1
+  fi
+
+  local __XX_BIN_VERSION="${__XX_ANSWER#"${__XX_EXPECTED}"}"
+
+  if [[ "${__XX_BIN_VERSION}" != "${__XX_VERSION}" ]]; then
+    cat <<EEE >&2
+
+xx.sh error: versions of xx.sh and of the xx binary are different, they have to be from the same release
+
+  xx.sh     : ${__XX_VERSION}
+  xx binary : ${__XX_BIN_VERSION}   (XX_BIN=>${XX_BIN}<)
+
+  download both files of the same version from https://github.com/stopsopa/xx/releases
+
+EEE
+    return 1
+  fi
+
+  return 0
+}
+
+# Used only in bash, see __xx_source below.
+# Switches off everything what __xx_source switched on.
+__xx_guard_off() {
+  trap - DEBUG
+  set +e
+  if [[ "${__XX_FLAGS}" != *T* ]]; then
+    set +T
+  fi
+  if [[ "${__XX_FLAGS}" != *E* ]]; then
+    set +E
+  fi
+  eval "${__XX_EXTDEBUG}"
+}
+
+# Used only in bash, see __xx_source below.
+# Called by bash before every single command of the sourced script (DEBUG trap).
+#   ${1} - exit code of the previous command
+#   ${2} - how deep in functions / sourced files the command about to run is
+__xx_guard() {
+  # whatever the script did with "set -e", it is off again before next command runs
+  set +e
+
+  # we are back at the prompt without passing through the cleanup in __xx_source:
+  # bash 5 jumps straight to the prompt on Ctrl+C. Clean up now.
+  if [[ "${2}" -lt "${__XX_DEPTH}" ]]; then
+    __xx_guard_off
     return 0
   fi
 
-  if [[ -f "${__XX_DIR}/xx-bin" ]]; then
-    echo "${__XX_DIR}/xx-bin"
-    return 0
+  # 130 = previous command was killed by Ctrl+C
+  if [[ "${1}" = "130" ]]; then
+    __XX_INT="1"
   fi
 
-  local ARCH_DIR
-  case "$(uname -m)" in
-    arm64|aarch64) ARCH_DIR="arm64" ;;
-    x86_64|amd64) ARCH_DIR="x64" ;;
-    *) ARCH_DIR="$(uname -m)" ;;
-  esac
-
-  if [[ -f "${__XX_DIR}/bin/${ARCH_DIR}/xx" ]]; then
-    echo "${__XX_DIR}/bin/${ARCH_DIR}/xx"
-    return 0
+  # 2 = (with extdebug) don't run the command and return from current function / sourced file,
+  # repeated for every level until we are out of the sourced script
+  if [[ -n "${__XX_INT}" && "${2}" -gt "${__XX_DEPTH}" ]]; then
+    return 2
   fi
 
-  return 1
+  return 0
 }
 
 # Sources generated script in the current shell (source: true).
 #
-# Protects the shell from being closed by Ctrl+C:
-# when sourced script contains "set -e" and Ctrl+C kills command it was waiting for,
-# that command "fails" and "set -e" closes the whole terminal.
-# Fix is different for each shell (both tested in test/test021):
-#   zsh  - options are local to this function (set -e of the script is reverted on return),
-#          Ctrl+C returns from the function
-#   bash - Ctrl+C switches "set -e" off before bash checks result of the killed command
+# Protects the terminal from being closed by Ctrl+C. The problem:
+# sourced script contains "set -e", Ctrl+C kills the command the script was waiting for,
+# that counts as failed command and "set -e" closes the whole shell = your terminal.
+# Even without Ctrl+C: any failing command after "set -e" in sourced script closes the terminal.
+#
+# So for scripts with source: true "set -e" is neutralised - script continues after failed command.
+# Ctrl+C stops the script and gives control back to the prompt, with return code 130.
+#
+# How (each shell needs different trick, all found by experiments, covered by test/test018):
+#   zsh  - "if source ...; then" - zsh ignores "set -e" in everything executed as a condition,
+#          options are local to this function (reverted on return), Ctrl+C returns from the function
+#   bash - "if source" trick doesn't work in bash 3.2 (macOS), and trap on INT is not reliable,
+#          so DEBUG trap (__xx_guard) is executed before every command of the script:
+#          it switches "set -e" off again and stops the script after Ctrl+C
 #
 # WARNING: "exit" inside of a script with source: true closes the terminal, nothing can be done
 # about it from here - use "return" in such scripts.
@@ -86,65 +187,55 @@ __xx_source() {
   if [ -n "${ZSH_VERSION}" ]; then
     setopt localoptions localtraps
     trap 'return 130' INT
+    local __XX_ZCODE="0"
     if source "${__XX_FILE}" "${@}"; then
-      return 0
+      __XX_ZCODE="0"
     else
-      return "${?}"
+      __XX_ZCODE="${?}"
     fi
+    # must be off before "return" with non zero code, otherwise that return closes the shell
+    set +e
+    return "${__XX_ZCODE}"
   fi
 
-  local __XX_CODE
-  local __XX_TRAP
-  __XX_TRAP="$(trap -p INT)"
-  trap 'set +e; trap - INT; eval "${__XX_TRAP}"' INT
+  # not local: __xx_guard needs them also when bash jumped out of this function on Ctrl+C
+  __XX_DEPTH="${#FUNCNAME[@]}"
+  __XX_FLAGS="${-}"
+  __XX_EXTDEBUG="$(shopt -p extdebug)"
+  __XX_INT=""
+
+  # -T: DEBUG trap works also inside of sourced files and functions
+  set -T
+  # extdebug: DEBUG trap can stop the script by returning 2
+  shopt -s extdebug
+  trap '__xx_guard "${?}" "${#FUNCNAME[@]}"' DEBUG
+
   source "${__XX_FILE}" "${@}"
-  __XX_CODE="${?}"
-  set +e
-  trap - INT
-  eval "${__XX_TRAP}"
+
+  local __XX_CODE="${?}"
+
+  __xx_guard_off
+
+  if [[ -n "${__XX_INT}" ]]; then
+    __XX_CODE="130"
+  fi
+
   return "${__XX_CODE}"
 }
 
 __xx_main() {
-  # --lock, --unlock, --copy are not ported, they still live in the old xx.sh
-  if [[ "${1}" = "--lock" || "${1}" = "--unlock" || "${1}" = "--copy" ]]; then
-    if [[ -f "${XX_LEGACY_SH}" ]]; then
-      source "${XX_LEGACY_SH}" "${@}"
-      return "${?}"
-    fi
-
-    cat <<EEE
-
-xx.sh error: ${1} is handled by the old xx.sh, point to it with env var XX_LEGACY_SH=>${XX_LEGACY_SH}<
-
-  export XX_LEGACY_SH="/path/to/old/xx.sh"
-
-EEE
-    return 1
+  # version of this file is printed even when the binary is missing or broken,
+  # version of the binary follows after it passed the check
+  if [[ "${1}" = "--version" || "${1}" = "-V" ]]; then
+    echo "xx.sh ${__XX_VERSION}"
   fi
 
-  local __XX_BIN
-  __XX_BIN="$(__xx_find_bin)"
-
-  if [[ -z "${__XX_BIN}" || ! -f "${__XX_BIN}" ]]; then
-    cat <<EEE
-
-xx.sh error: xx binary not found >${__XX_BIN}<, checked:
-  env var XX_BIN=>${XX_BIN}<
-  ${__XX_DIR}/xx-bin
-  ${__XX_DIR}/bin/<arch>/xx
-
-  download it from https://github.com/stopsopa/xx/releases
-  and save as ${__XX_DIR}/xx-bin
-
-EEE
-    return 1
-  fi
+  __xx_check_bin || return 1
 
   # these only print something, nothing to execute afterwards
   case "${1}" in
-    --help|-h|--version|-V|--list|--init|--gen)
-      "${__XX_BIN}" "${@}" < /dev/null
+    --help|-h|--version|-V|--list|--init|--esm|--gen)
+      "${XX_BIN}" "${@}" < /dev/null
       return "${?}"
       ;;
   esac
@@ -153,7 +244,7 @@ EEE
   # The menu doesn't need it, it talks to /dev/tty directly.
   local __XX_GENERATED
   local __XX_CODE
-  __XX_GENERATED="$("${__XX_BIN}" "${@}" < /dev/null)"
+  __XX_GENERATED="$("${XX_BIN}" "${@}" < /dev/null)"
   __XX_CODE="${?}"
 
   # drop the name of the command (or --), what is left are arguments for the script

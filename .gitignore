@@ -4,3 +4,5 @@
 
 /__links/
 /validateenv.log
+
+__pycache__/

@@ -1,0 +1,63 @@
+name: GitHub Pages
+
+# Publishes root directory of the repository to GitHub Pages, as it is (no build step),
+# without directories with dependencies and build results.
+#
+# One time setup in the repository:
+#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+#
+# Result: https://stopsopa.github.io/xx/
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# only one deployment at a time, don't cancel the one in progress
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy root directory
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy root directory without dependencies
+        run: |
+          mkdir -p "${RUNNER_TEMP}/site"
+          rsync -a \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'target/' \
+            --exclude 'bin/' \
+            --exclude 'node_modules/' \
+            --exclude 'vendor/' \
+            --exclude '__links/' \
+            ./ "${RUNNER_TEMP}/site/"
+          # without this file GitHub Pages hides files and directories starting with underscore
+          touch "${RUNNER_TEMP}/site/.nojekyll"
+          ls -la "${RUNNER_TEMP}/site"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

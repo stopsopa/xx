@@ -1,0 +1,1 @@
+Test 013 verifies errors in the config: export which is not a function, function not returning an object, entry which is not an object, `command` which is not a string and syntax error. Each gives exit code 1 and a message with path of the config (and the key when known). Also unknown command name.

@@ -1,0 +1,1 @@
+Test 011 verifies how the menu is drawn: only the selected row is in reverse colors (`\e[7m`), rows have the block indicator and right aligned number, description of the selected row is shown under the list, long rows are cut to the width of the terminal and after selection one line with a check mark stays.

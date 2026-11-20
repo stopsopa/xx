@@ -61,8 +61,8 @@ fn truthy(v: &Value) -> bool {
  * Result is sorted the way it is presented in the menu.
  */
 pub fn parse(json: &str, config: &str) -> Result<Vec<Command>, String> {
-    let root: Value =
-        serde_json::from_str(json).map_err(|e| format!("can't parse loader output for >{config}<: {e}"))?;
+    let root: Value = serde_json::from_str(json)
+        .map_err(|e| format!("can't parse loader output for >{config}<: {e}"))?;
 
     let entries = root
         .as_array()
@@ -80,7 +80,9 @@ pub fn parse(json: &str, config: &str) -> Result<Vec<Command>, String> {
         let command = value
             .get("command")
             .and_then(Value::as_str)
-            .ok_or_else(|| format!("value.command for key >{name}< in >{config}< is not a string"))?;
+            .ok_or_else(|| {
+                format!("value.command for key >{name}< in >{config}< is not a string")
+            })?;
 
         let description = match value.get("description").and_then(Value::as_str) {
             Some(d) => d,
@@ -162,7 +164,11 @@ mod tests {
             ["d",{"command":"","order":-1}],
             ["e",{"command":""}]
         ]"#;
-        let names: Vec<String> = parse(json, "f").unwrap().into_iter().map(|c| c.name).collect();
+        let names: Vec<String> = parse(json, "f")
+            .unwrap()
+            .into_iter()
+            .map(|c| c.name)
+            .collect();
         assert_eq!(names, ["d", "a", "c", "e", "b"]);
     }
 

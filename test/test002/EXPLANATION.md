@@ -1,0 +1,1 @@
+Test 002 verifies lookup order of the config: `.git/xx.cjs` wins over `./xx.cjs`, which wins over `~/xx.cjs`. When none exists the error lists all four accepted file names and all checked directories, exit code is 1.

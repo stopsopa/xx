@@ -1,4 +1,4 @@
-/**
+/*!
  * Port of pages/bash/xx/lib/range.js
  *
  * Adds one block character in front of each menu row. Blocks are thick at both ends

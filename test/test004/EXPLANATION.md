@@ -1,0 +1,1 @@
+Test 004 verifies running a command by name: binary exits with 0, prints path of the generated script on stdout and the script contains exactly the text of `command` (with `<% name %>` replaced). The binary itself must not execute the script.

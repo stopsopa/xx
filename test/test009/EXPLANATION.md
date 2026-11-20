@@ -1,0 +1,1 @@
+Test 009 verifies that stdin given to `xx` is passed untouched to the final script: with a pipe, with redirection, for `source: true` commands and when the command is picked from the menu. Neither the binary nor loading of `xx.cjs` may consume it.

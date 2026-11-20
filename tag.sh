@@ -46,7 +46,8 @@ if [[ -n "${ALL_TAGS}" ]]; then
   LATEST_TAG="$(git tag -l --sort=v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | tail -n 1)"
 fi
 
-V_PREFIX=""
+# first tag ever gets "v" prefix too (v0.0.1), otherwise the prefix is taken from the latest tag
+V_PREFIX="v"
 if [[ -z "${LATEST_TAG}" ]]; then
   LATEST_TAG="0.0.0"
   MAJOR=0
@@ -54,6 +55,7 @@ if [[ -z "${LATEST_TAG}" ]]; then
   PATCH=0
 else
   RAW_TAG="${LATEST_TAG}"
+  V_PREFIX=""
   if [[ "${RAW_TAG}" =~ ^v ]]; then
     V_PREFIX="v"
     RAW_TAG="${RAW_TAG#v}"
@@ -81,10 +83,31 @@ cat <<EEE
 ${BOLD}Previous tag:${RESET} ${YELLOW}${LATEST_TAG}${RESET}
 ${BOLD}Mode:${RESET}         ${CYAN}${MODE}${RESET}
 ${BOLD}New tag:${RESET}      ${GREEN}${NEW_TAG}${RESET}
+${BOLD}Commit:${RESET}       $(git log -1 --format='%h %s')
 
 EEE
 
-read -r -p "Press Enter to create and push tag '${NEW_TAG}', or Ctrl+C to abort..."
+# The tag is put on current commit with what is committed, warn about everything what
+# makes the release different from what you see in the working directory
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "${YELLOW}warning: there are uncommitted changes, they will NOT be part of the release${RESET}"
+fi
+
+if [[ -z "$(git branch -r --contains HEAD 2> /dev/null)" ]]; then
+  echo "${YELLOW}warning: current commit is not pushed to any remote branch (the tag will be pushed with it anyway)${RESET}"
+fi
+
+if ! grep -q "^## ${NEW_TAG}\$" "${DIR}/changelog.md" 2> /dev/null; then
+  echo "${YELLOW}warning: no section '## ${NEW_TAG}' in changelog.md, release page will have no description of changes${RESET}"
+fi
+
+# Ctrl+D (end of input) must not be treated as Enter
+read -r -p "Press Enter to create and push tag '${NEW_TAG}', or Ctrl+C to abort..." || {
+  echo ""
+  echo "${0} error: aborted"
+  exit 1
+}
 
 git tag "${NEW_TAG}" || {
   echo "${0} error: failed to create tag >${NEW_TAG}<"
@@ -92,7 +115,9 @@ git tag "${NEW_TAG}" || {
 }
 
 git push origin "${NEW_TAG}" || {
-  echo "${0} error: failed to push tag >${NEW_TAG}< to remote"
+  # without this next run would see the local tag and skip a version
+  git tag -d "${NEW_TAG}"
+  echo "${0} error: failed to push tag >${NEW_TAG}< to remote, local tag removed"
   exit 1
 }
 

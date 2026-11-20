@@ -1,7 +1,8 @@
-// to install go to: https://stopsopa.github.io//pages/bash/index.html#xx
-
-// viewer       : https://stopsopa.github.io/viewer.html?file=%2Fpages%2Fbash%2Fxx%2Fxx-template.cjs
-// github edit  : https://github.com/stopsopa/stopsopa.github.io/blob/master/pages/bash/xx/xx-template.cjs
+// template of xx config, flavour: xx.mjs
+// ES module (export default), always, no matter what "type" says in package.json
+// project      : https://github.com/stopsopa/xx
+// this file    : https://github.com/stopsopa/xx/blob/main/templates/xx.mjs
+// to get it    : xx --init mjs
 
 // in order to run any xx command with custom export env var:
 // (shopt -s expand_aliases; export ENVFILE=.env.ci; xx "docker up")
@@ -37,7 +38,7 @@ const esc = `printf '\n${GREEN}Press any key to continue (Esc to exit)...${RESET
 IFS= read -r -n1 k 2>/dev/null||IFS= read -r k;stty "$old"
 [ "$k" = "$(printf '\\033')" ]&&exit 0;`;
 
-module.exports = (setup) => {
+export default (setup) => {
   return {
     [`esc`]: {
       command: `

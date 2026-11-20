@@ -1,3 +1,12 @@
+# Builds the xx binary for the machine it is executed on.
+#
+#   /bin/bash compile.sh
+#
+# stdout: only absolute paths of binaries found in bin/ after the build, one per line
+#         (every binary which is there, however many), so it can be consumed by other scripts:
+#           export XX_BIN="$(/bin/bash compile.sh | head -n 1)"
+# stderr: everything else (progress, errors)
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 source "${DIR}/bash/detect_arch.sh"
@@ -5,7 +14,7 @@ source "${DIR}/bash/detect_arch.sh"
 GREEN=$'\033[32m'
 RESET=$'\033[0m'
 
-echo "Building for target '${TARGET}' (arch: ${ARCH_DIR})..."
+echo "Building for target '${TARGET}' (arch: ${ARCH_DIR})..." >&2
 
 export XX_VERSION="dev"
 
@@ -18,7 +27,7 @@ else
 fi
 
 if [[ "${BUILD_STATUS}" -ne 0 ]]; then
-  echo "${0} error: cargo build failed with exit code >${BUILD_STATUS}<"
+  echo "${0} error: cargo build failed with exit code >${BUILD_STATUS}<" >&2
   exit "${BUILD_STATUS}"
 fi
 
@@ -30,11 +39,13 @@ if [[ ! -f "${SRC_BIN}" ]]; then
 fi
 
 if [[ ! -f "${SRC_BIN}" ]]; then
-  echo "${0} error: built binary not found at >${SRC_BIN}<"
+  echo "${0} error: built binary not found at >${SRC_BIN}<" >&2
   exit 1
 fi
 
 cp "${SRC_BIN}" "${XX_BIN_PATH}"
 
-echo "${GREEN}Done. Binary written to bin/${ARCH_DIR}/xx${RESET}"
+echo "${GREEN}Done. Binaries:${RESET}" >&2
+
+find "${DIR}/bin" -type f -name xx | sort
 

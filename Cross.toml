@@ -1,0 +1,4 @@
+# cross builds in a container (linux arm64 in CI), env vars have to be passed through explicitly.
+# XX_VERSION is read by build.rs
+[build.env]
+passthrough = ["XX_VERSION"]

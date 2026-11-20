@@ -1,0 +1,1 @@
+Test 012 verifies cancelling the menu: Esc, Ctrl+C or end of input give exit code 130, no script is written (also stale script from previous run is removed) and `xx.sh` returns 130 without executing anything.

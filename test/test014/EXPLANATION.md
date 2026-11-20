@@ -1,0 +1,1 @@
+Test 014 verifies what a config is allowed to do: print to stdout (goes to stderr, does not break loading), read environment variables, be async, use the second argument (context with args, cwd and configPath) and be an ES module (`xx.mjs`).

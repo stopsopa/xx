@@ -1,0 +1,154 @@
+# Shared setup for all tests, source it at the top of every test/testNNN/test.sh:
+#
+#   DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+#   source "${DIR}/../_lib.sh"
+#
+# What the test gets:
+#   ROOT   - root of the repository
+#   BIN    - compiled xx binary
+#   XXSH   - the wrapper (xx.sh)
+#   WORK   - temporary directory, removed when test ends
+#   HOME   - ${WORK}/home    (empty, so real ~/xx.* can't influence the test)
+#   XX_TMP - ${WORK}/tmp     (TMP_GEN_DIR = directory where scripts generated without .git go)
+#   pwd    - ${WORK}/project (empty, no .git)
+#   XX_BIN, XX_NODE_BINARY   - set, the rest of XX_* env vars and NODE_OPTIONS are unset
+#
+# Result of xx depends on pwd, on .git and on ~/xx.*, that's why each test is isolated this way.
+
+ROOT="$(cd "${DIR}/../.." && pwd)"
+
+source "${ROOT}/bash/detect_arch.sh"
+
+BIN="${XX_BIN_PATH}"
+XXSH="${ROOT}/xx.sh"
+
+if [[ ! -f "${BIN}" ]]; then
+  echo "${0} error: binary not found at >${BIN}<. Run compile.sh first."
+  exit 1
+fi
+
+# xx.sh will use exactly this binary
+export XX_BIN="${BIN}"
+
+# Real path of node has to be resolved before HOME is changed:
+# version managers (asdf) stop working without their config from real HOME
+if [[ -z "${XX_NODE_BINARY}" ]]; then
+  XX_NODE_BINARY="$(NODE_OPTIONS="" node -e 'console.log(process.execPath)')"
+fi
+export XX_NODE_BINARY
+
+if [[ ! -f "${XX_NODE_BINARY}" ]]; then
+  echo "${0} error: node not found XX_NODE_BINARY=>${XX_NODE_BINARY}<"
+  exit 1
+fi
+
+# whatever the developer has in the shell (e.g. --inspect) must not influence the tests
+unset NODE_OPTIONS
+unset XX_NODE_OPTIONS
+unset XX_CONFIRM
+# the old name, must have no effect
+unset XXCONFIRM
+unset XX_TEST_KEYS
+unset XX_TEST_SIZE
+unset XX_INIT_CONFIG
+
+WORK="$(cd "$(mktemp -d)" && pwd -P)"
+
+trap 'rm -rf "${WORK}"' EXIT
+
+mkdir -p "${WORK}/home" "${WORK}/project" "${WORK}/tmp"
+
+# without .git the generated script goes to ${XX_TMP}/xx-<uid>/<hash of pwd>.sh
+export XX_TMP="${WORK}/tmp"
+TMP_GEN_DIR="${XX_TMP}/xx-$(id -u)"
+
+export HOME="${WORK}/home"
+
+# zsh would read startup files of the real user from here
+export ZDOTDIR="${WORK}/home"
+
+cd "${WORK}/project"
+
+fail() {
+  echo "${0} error: ${1}"
+  exit 1
+}
+
+# assert_eq <actual> <expected> <what is compared>
+assert_eq() {
+  if [[ "${1}" != "${2}" ]]; then
+    fail "${3}: expected >${2}< got >${1}<"
+  fi
+}
+
+# assert_contains <text> <fragment> <what is checked>
+assert_contains() {
+  if [[ "${1}" != *"${2}"* ]]; then
+    fail "${3}: >${2}< not found in >${1}<"
+  fi
+}
+
+# assert_not_contains <text> <fragment> <what is checked>
+assert_not_contains() {
+  if [[ "${1}" == *"${2}"* ]]; then
+    fail "${3}: >${2}< found in >${1}<"
+  fi
+}
+
+# write_config <file> <ts|esm|cjs> <name of the only command>
+# the command prints "<name> executed"
+write_config() {
+  case "${2}" in
+    ts)
+      cat <<EEE > "${1}"
+type Command = { command: string; confirm?: boolean };
+const name: string = "${3}";
+export default (): Record<string, Command> => ({
+  [name]: { command: \`echo "\${name} executed"\`, confirm: false },
+});
+EEE
+      ;;
+    esm)
+      cat <<EEE > "${1}"
+export default () => ({
+  "${3}": { command: \`echo "${3} executed"\`, confirm: false },
+});
+EEE
+      ;;
+    cjs)
+      cat <<EEE > "${1}"
+module.exports = () => ({
+  "${3}": { command: \`echo "${3} executed"\`, confirm: false },
+});
+EEE
+      ;;
+    *)
+      fail "write_config: unknown flavour >${2}<"
+      ;;
+  esac
+}
+
+# Checks that xx finds config: file with given flavour is created, listed, generated and executed
+# check_config <file> <ts|esm|cjs> <label>
+check_config() {
+  local FILE="${1}"
+  local FLAVOUR="${2}"
+  local LABEL="${3}"
+  local NAME="cmd-${RANDOM}"
+  local OUT
+
+  write_config "${FILE}" "${FLAVOUR}" "${NAME}"
+
+  OUT="$("${BIN}" --list 2>&1)"
+  assert_eq "${OUT}" "  1 - ${NAME}" "${LABEL}: --list"
+
+  OUT="$("${BIN}" --gen "${NAME}" 2>&1)"
+  assert_contains "${OUT}" "echo \"${NAME} executed\"" "${LABEL}: --gen"
+
+  for SHELL_BIN in /bin/bash zsh; do
+    OUT="$("${SHELL_BIN}" -c "source \"${XXSH}\" ${NAME}; echo \"code=\${?}\"" 2>&1)"
+    assert_eq "${OUT}" "$(printf '%s executed\ncode=0' "${NAME}")" "${LABEL}: executed through xx.sh in ${SHELL_BIN}"
+  done
+
+  rm "${FILE}"
+}

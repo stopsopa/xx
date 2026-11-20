@@ -2,6 +2,47 @@
 
 Rewrite of `pages/bash/xx` (currently `xx.sh` + `xx.node.cjs` bundled with inquirer) as a Rust binary driven by a thin shell wrapper.
 
+## 0. Status: implemented
+
+Built: option B from section 10 question 5 (Rust binary that runs the installed `node` to load the config). The rest of this document is the original plan and is kept as history; **where it differs from this section, this section and `README.md` / `DEV.md` are right.**
+
+Requirements added after the plan was written, all implemented:
+
+| Requirement | How |
+| --- | --- |
+| Ctrl+C with `source: true` must not close the shell | `__xx_source` in `xx.sh`; needs a different trick in zsh and in bash, see the comment there. Side effect: `set -e` is neutralised in sourced scripts. `test/test018`. |
+| Arguments reach the final script | `xx <name> [args]`, and new `xx -- [args]` for the menu. `test/test008`, `test/test010`. |
+| Stdin reaches the final script | Binary and node get `/dev/null` as stdin, menu reads keys from `/dev/tty`. `test/test009`. |
+| `XX_NODE_BINARY` required, really checked on every run | `src/node.rs`: file exists, `--version` answers `vX.Y.Z`. No fallback to `node` from `PATH`. `test/test022`. |
+| `XX_NODE_OPTIONS` | Replaces `NODE_OPTIONS` of node started by `xx`; not defined = `NODE_OPTIONS` untouched (the plan cleared it always). `test/test022`. |
+| `xx.ts`, `xx.js`, `xx.mjs`, `xx.cjs` | Searched in this order in `.git/`, then `./`, then `~/`. Loaded with `import()`, node decides the format. `test/test019` - `test/test021`. |
+| `--init [ts|js|mjs|cjs]`, `--esm [path]`, `XX_INIT_CONFIG` | Templates in `templates/`, listed in `init.json`; json and templates can be URLs or local paths. Nothing embedded in the binary. `test/test016`. |
+| `XX_BIN` required, handshake, equal versions | `__xx_check_bin` in `xx.sh`, `--handshake` in the binary, version embedded in both by the release workflow. `test/test017`. |
+| `--lock` / `--unlock` / `--copy` | Dropped completely (the plan forwarded them to the old script). |
+| `compile.sh` prints paths of binaries on stdout | Everything else goes to stderr. |
+| GitHub Pages from the root directory | `.github/workflows/pages.yml`. |
+
+Answers to the open questions (section 10):
+
+1. Script without `.git`: switched to `${XX_TMP}/xx-<uid>/<hash of pwd>.sh`.
+2. Lookup: unchanged, only `.git/` and the current directory (then home), no walking up.
+3. Merging `~/xx.*` into local menus: not answered, not done. `~/xx.*` is used only when nothing local exists, as before.
+4. Bugs: fixed. `xx <number>` means the number shown in the menu; `order` is a stable sort with missing = 0.
+5. Engine: node (option B).
+6. `--lock` family: dropped.
+7. Changelog per version: not answered, done as proposed (`## vX.Y.Z` sections).
+8. Intel Mac and musl builds: not answered, same three targets as securenv.
+
+Other differences from the plan below:
+
+- The loader prints JSON on stdout between two markers (and redirects the config's own stdout to stderr), instead of using file descriptor 3.
+- No `crossterm`; raw mode and key reading are done with `libc` on `/dev/tty` directly.
+- `j` / `k` do not move the selection, because typing filters the list.
+- `command` as a function (lazy) is not implemented.
+- The binary is not searched next to `xx.sh` or in `bin/<arch>/`, `XX_BIN` is the only way.
+- 22 end-to-end tests exist, numbered differently from the table in section 8.
+- `.agents/` and `AGENTS.md` were not copied from securenv.
+
 ## 1. Decisions in short
 
 | Question | Decision |
@@ -127,7 +168,7 @@ Other rules:
 
 - `<% name %>` in `command` and `description` is replaced with the key.
 - `xx` with no arguments opens the menu; `xx <name|number> [args...]` runs directly. A number is tried before a name. Remaining args become `$1 $2 ...` of the generated script.
-- `confirm` is `true` when missing. `XXCONFIRM=false` in env skips every confirmation.
+- `confirm` is `true` when missing. `XX_CONFIRM=false` in env skips every confirmation.
 - The script is written even when the user answers "no" (exit 10), and the old generated file is deleted at start.
 - `source: true` → exit 55 → wrapper sources the file, then `set +e`.
 - Ctrl+C → exit 130, cursor restored.
@@ -248,7 +289,7 @@ Planned tests:
 | 004 | run by name writes the exact `command` text, stdout is the path, exit 0 |
 | 005 | run by number uses the menu (sorted) number; number is tried before name |
 | 006 | `source: true` → exit 55; through `xx.sh` a variable exported by the script is visible afterwards (bash and zsh) |
-| 007 | `confirm` missing → asks; answer "no" → exit 10 and file still written; `XXCONFIRM=false` skips |
+| 007 | `confirm` missing → asks; answer "no" → exit 10 and file still written; `XX_CONFIRM=false` skips |
 | 008 | `<% name %>` replaced in `command` and `description`; description defaults to the key |
 | 009 | `order`: stable sort, missing = 0, negative first |
 | 010 | args after the name reach the script as `$1 $2`, including an arg with spaces; script's exit code (54) comes back through `xx.sh` |
@@ -314,7 +355,7 @@ Same as securenv: `/bin/bash tag.sh patch|minor|major` (or `xx publish`), CI doe
 
 ## 10. Open questions for you
 
-1. **No `.git` directory**: today the script goes to `~/xx_generated.sh`, shared by every terminal, so two `xx` runs at once can overwrite each other. Proposal: `${TMPDIR}/xx-<uid>/<hash of cwd>.sh`. Keep `~/xx_generated.sh` or switch?
+1. **No `.git` directory**: today the script goes to `~/xx_generated.sh`, shared by every terminal, so two `xx` runs at once can overwrite each other. Proposal: `${XX_TMP}/xx-<uid>/<hash of cwd>.sh`. Keep `~/xx_generated.sh` or switch?
 2. **Lookup only in `pwd`**: should `xx` walk up to the repo root so it works from subdirectories? Proposal: yes, walk up to the first directory with `xx.cjs` or `.git`, and `cd` is **not** changed; the script still runs in the directory you are in. This changes which config is picked in nested setups, so it is your call.
 3. **Merging `~/xx.cjs`**: today it is used only when no local config exists. Your screenshot shows a `~/help` entry, which suggests you copy global entries by hand. Should the global file be merged into every menu (local wins on name clash)?
 4. **Bug fixes 2 and 3 in section 4** change numbering and ordering in edge cases. OK to change, or keep the old behaviour exactly?

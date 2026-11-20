@@ -183,7 +183,10 @@ impl Term for Tty {
                         None => return Key::Eof,
                     }
                 }
-                match std::str::from_utf8(&buf).ok().and_then(|s| s.chars().next()) {
+                match std::str::from_utf8(&buf)
+                    .ok()
+                    .and_then(|s| s.chars().next())
+                {
                     Some(c) => Key::Char(c),
                     None => Key::Other,
                 }
@@ -200,7 +203,10 @@ impl Term for Tty {
         // SAFETY: winsize is plain struct filled by ioctl
         unsafe {
             let mut ws: libc::winsize = std::mem::zeroed();
-            if libc::ioctl(self.file.as_raw_fd(), libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0 && ws.ws_row > 0 {
+            if libc::ioctl(self.file.as_raw_fd(), libc::TIOCGWINSZ, &mut ws) == 0
+                && ws.ws_col > 0
+                && ws.ws_row > 0
+            {
                 return (ws.ws_col as usize, ws.ws_row as usize);
             }
         }
@@ -334,7 +340,10 @@ impl<'a> Select<'a> {
         let needle = self.filter.to_lowercase();
         self.visible = (0..self.list.len())
             .filter(|&i| {
-                needle.is_empty() || format!("{} - {}", i + 1, self.list[i].name).to_lowercase().contains(&needle)
+                needle.is_empty()
+                    || format!("{} - {}", i + 1, self.list[i].name)
+                        .to_lowercase()
+                        .contains(&needle)
             })
             .collect();
         self.cursor = 0;
@@ -368,7 +377,10 @@ impl<'a> Select<'a> {
 
         let mut header = format!("{GREEN}?{RESET} {BOLD}{MESSAGE}{RESET}");
         if !self.filter.is_empty() {
-            header.push_str(&format!(" {CYAN}{}{RESET}", truncate(&self.filter, max.saturating_sub(MESSAGE.len() + 3))));
+            header.push_str(&format!(
+                " {CYAN}{}{RESET}",
+                truncate(&self.filter, max.saturating_sub(MESSAGE.len() + 3))
+            ));
         }
         out.push(header);
 
@@ -389,7 +401,13 @@ impl<'a> Select<'a> {
 
         let description = self
             .selected()
-            .map(|i| self.list[i].description.split_whitespace().collect::<Vec<_>>().join(" "))
+            .map(|i| {
+                self.list[i]
+                    .description
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
             .unwrap_or_default();
         out.push(truncate(&description, max));
 
@@ -444,11 +462,16 @@ pub fn select(term: &mut dyn Term, list: &[Command]) -> Option<usize> {
             Key::Enter => {
                 if let Some(i) = state.selected() {
                     let (cols, _) = term.size();
-                    let text = truncate(&state.labels[i], cols.saturating_sub(MESSAGE.len() + 5).max(10));
+                    let text = truncate(
+                        &state.labels[i],
+                        cols.saturating_sub(MESSAGE.len() + 5).max(10),
+                    );
                     draw(
                         term,
                         previous,
-                        &[format!("{GREEN}✔{RESET} {BOLD}{MESSAGE}{RESET} {CYAN}{text}{RESET}\r\n")],
+                        &[format!(
+                            "{GREEN}✔{RESET} {BOLD}{MESSAGE}{RESET} {CYAN}{text}{RESET}\r\n"
+                        )],
                     );
                     return Some(i);
                 }
@@ -527,7 +550,11 @@ mod tests {
         s.cursor = 1;
         let lines = s.lines(80, 24);
         assert_eq!(lines.iter().filter(|l| l.contains(REVERSE)).count(), 1);
-        assert!(lines[2].starts_with("❯ ") && lines[2].contains("2 - b"), "{:?}", lines);
+        assert!(
+            lines[2].starts_with("❯ ") && lines[2].contains("2 - b"),
+            "{:?}",
+            lines
+        );
         assert!(lines.contains(&"desc b".to_string()));
     }
 

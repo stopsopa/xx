@@ -1,0 +1,1 @@
+Test 001 verifies that `--list` prints commands from `./xx.cjs` in order from the file, that description defaults to the name of the command and that `<% name %>` is replaced with the name in description. Also checks `--list --json`.

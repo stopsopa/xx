@@ -1,7 +1,8 @@
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use crate::model;
+use crate::node::{self, Node};
 
 const LOADER_JS: &str = include_str!("loader.js");
 
@@ -15,19 +16,16 @@ fn json_string(s: &str) -> String {
 /**
  * Runs config through node and returns sorted, validated list of commands.
  *
- *   XX_NODE       - path to node binary (default: "node" from PATH).
- *                   Pointing it to real binary skips version manager shims (asdf: ~80ms).
- *   NODE_OPTIONS  - removed from environment of node, same as the old xx.sh did.
- *
+ * node is the one from XX_NODE_BINARY, already checked (see node.rs).
  * stdin of node is /dev/null: stdin of xx belongs to the final script.
  */
-pub fn load(config: &Path, cwd: &Path, args: &[String]) -> Result<Vec<model::Command>, String> {
+pub fn load(
+    node: &Node,
+    config: &Path,
+    cwd: &Path,
+    args: &[String],
+) -> Result<Vec<model::Command>, String> {
     let config_str = config.to_string_lossy().to_string();
-
-    let node = match std::env::var("XX_NODE") {
-        Ok(v) if !v.trim().is_empty() => v,
-        _ => "node".to_string(),
-    };
 
     let args_json: Vec<String> = args.iter().map(|a| json_string(a)).collect();
     let ctx = format!(
@@ -37,20 +35,35 @@ pub fn load(config: &Path, cwd: &Path, args: &[String]) -> Result<Vec<model::Com
         json_string(&config_str),
     );
 
-    let output = Command::new(&node)
+    let output = node::command(&node.path)
         .arg("-e")
         .arg(LOADER_JS)
         .arg(&config_str)
         .arg(&ctx)
-        .env_remove("NODE_OPTIONS")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .output()
-        .map_err(|e| format!("can't run node >{node}< (is node installed? you can set XX_NODE): {e}"))?;
+        .map_err(|e| format!("can't run node >{}<: {e}", node.path))?;
 
     if !output.status.success() {
-        return Err(format!("loading config >{config_str}< failed"));
+        let mut message = format!(
+            "loading config >{config_str}< failed (node {} >{}<)",
+            node.version, node.path
+        );
+        // .ts is executed by node itself, old node can't do that
+        if config.extension().and_then(|e| e.to_str()) == Some("ts") {
+            if let Some(v) = node.major_minor() {
+                if v < (22, 18) {
+                    message.push_str(&format!(
+                        "\n  xx.ts needs node which strips typescript types on its own (22.18+), {} is {}",
+                        node::ENV_BINARY,
+                        node.version
+                    ));
+                }
+            }
+        }
+        return Err(message);
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);

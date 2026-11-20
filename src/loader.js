@@ -1,7 +1,7 @@
 /**
  * Loader executed by the xx binary:
  *
- *   node -e <this file> <absolute path to xx.cjs> <context as json>
+ *   node -e <this file> <absolute path to xx.ts|js|mjs|cjs> <context as json>
  *
  * Loads the config, calls exported function and prints list of commands
  * as json array of [key, value] pairs between two markers on stdout.
@@ -28,6 +28,18 @@ const fail = (m) => {
 // from now on stdout belongs to the json only
 process.stdout.write = process.stderr.write.bind(process.stderr);
 
+// xx.js / xx.ts written as es module in a project where package.json has no "type":
+// node loads it correctly, but prints 4 lines of warning on every single run of xx.
+// Nothing is wrong from the point of view of xx, so only this one warning is silenced.
+const emitWarning = process.emitWarning;
+process.emitWarning = function (warning, ...rest) {
+  const code = rest[0] && typeof rest[0] === "object" ? rest[0].code : rest[1];
+  if (code === "MODULE_TYPELESS_PACKAGE_JSON" || (warning && warning.code === "MODULE_TYPELESS_PACKAGE_JSON")) {
+    return;
+  }
+  return emitWarning.call(process, warning, ...rest);
+};
+
 function isObject(o) {
   return Object.prototype.toString.call(o) === "[object Object]";
 }
@@ -35,18 +47,17 @@ function isObject(o) {
 (async function () {
   const ctx = JSON.parse(ctxJson || "{}");
 
-  let mod;
+  // import() loads every flavour:
+  //   xx.cjs        - commonjs, module.exports lands in mod.default
+  //   xx.mjs        - es module
+  //   xx.js, xx.ts  - node decides: "type" in the nearest package.json,
+  //                   and when there is no "type", by syntax found in the file
+  const mod = await import(pathToFileURL(path.resolve(configPath)).href);
 
-  if (/\.cjs$/.test(configPath)) {
-    mod = require(path.resolve(configPath));
-  } else {
-    mod = await import(pathToFileURL(path.resolve(configPath)).href);
-  }
-
-  // module.exports = fn (cjs) or export default fn (mjs)
-  let fn = mod;
-  if (typeof fn !== "function" && mod && typeof mod.default === "function") {
-    fn = mod.default;
+  // export default fn | module.exports = fn | module.exports = { default: fn }
+  let fn = mod.default;
+  if (typeof fn !== "function" && fn && typeof fn.default === "function") {
+    fn = fn.default;
   }
 
   if (typeof fn !== "function") {

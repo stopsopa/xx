@@ -1,0 +1,1 @@
+Test 005 verifies `order` and running by number: sort is stable, missing `order` counts as 0, negative goes to the top. `xx <number>` uses the number shown in the menu (after sorting) and number is tried before name.

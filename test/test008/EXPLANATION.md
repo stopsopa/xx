@@ -1,0 +1,1 @@
+Test 008 verifies that arguments given after the name of the command reach the final script as `${1}`, `${2}`... (also argument with spaces and empty argument), for normal and for `source: true` commands, in bash and zsh. Exit code of the script comes back through `xx.sh`.

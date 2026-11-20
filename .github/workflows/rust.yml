@@ -1,0 +1,137 @@
+name: Rust CI & Release
+
+on:
+  push:
+    branches: [ "**" ]
+    tags: [ "**" ]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test on Linux x64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      # xx binary runs node to load the config, xx.ts needs node which strips types on its own (22.18+)
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # xx.sh is tested in bash and in zsh
+      - name: Install zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Compile binary
+        run: /bin/bash compile.sh
+
+      - name: Run unit and E2E tests
+        run: /bin/bash test.sh
+
+  build-matrix:
+    name: Build ${{ matrix.target }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: xx-darwin-arm64
+            use_cross: false
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: xx-linux-x64
+            use_cross: false
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: xx-linux-arm64
+            use_cross: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (if required)
+        if: matrix.use_cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      # Version is embedded only when a tag is built, the same value lands in xx.sh (job release).
+      # Everything else is "dev", like xx.sh in the repository.
+      - name: Build binary
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            export XX_VERSION="${{ github.ref_name }}"
+          fi
+          if [ "${{ matrix.use_cross }}" = "true" ]; then
+            # XX_VERSION reaches the container thanks to Cross.toml
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/xx dist/${{ matrix.artifact_name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.artifact_name }}
+
+  release:
+    name: Publish Release
+    needs: build-matrix
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      # needed for xx.sh (release asset), changelog.md and bash/release_notes.sh
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Prepare release files and checksums
+        run: |
+          mkdir -p release-dist
+          find release-artifacts -type f -exec cp {} release-dist/ \;
+          # the binary alone is not usable, the wrapper is part of every release.
+          # Version of the release is embedded in it: xx.sh refuses to work with binary of other version
+          sed 's/^__XX_VERSION="dev"$/__XX_VERSION="${{ github.ref_name }}"/' xx.sh > release-dist/xx.sh
+          if ! grep -q '^__XX_VERSION="${{ github.ref_name }}"$' release-dist/xx.sh; then
+            echo "error: version was not embedded in xx.sh"
+            exit 1
+          fi
+          cd release-dist
+          shasum -a 256 xx-* xx.sh > SHA256SUMS.txt
+          cd ..
+          /bin/bash bash/release_notes.sh "${{ github.ref_name }}" "${{ github.repository }}" release-dist > release_notes.md
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          body_path: release_notes.md
+          files: |
+            release-dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
