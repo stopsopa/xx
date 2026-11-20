@@ -1,23 +1,71 @@
 # xx
 
-Menu of shell commands for a project. Commands are defined in `xx.ts` (or `xx.js`, `xx.mjs`, `xx.cjs`) as `name => shell script`. Type `xx`, pick one with arrows, it runs.
+**One menu for all the shell commands of your project.**
+
+Every project collects commands nobody remembers: start the containers with the right env file, run the migration, activate the virtualenv, tail that one log. `xx` keeps them in one file next to the project and puts them one keystroke away:
 
 ```
+$ xx
 ? Select command to run
 ❯ █   1 - help
   ▏   2 - docker up
-  █   3 - activate
+  ▏   3 - db migrate
+  █   4 - activate
 
 Status of all things
 ↑↓ navigate • ⏎ select • type to filter
 ```
 
-It consists of two files, always from the same release:
+Type `xx`, pick a command with the arrows (or type to filter), press Enter, it runs. Or skip the menu: `xx "docker up"`.
 
-- `xx-bin` - Rust binary: finds the config, shows the menu, writes the script of the picked command to a file
-- `xx.sh` - shell wrapper sourced through an alias: executes that file (that is how a command can change your current shell, e.g. activate python venv). It works only with the binaries of its own release
+The menu comes from a small config file in your project, `xx.ts`:
 
-`node` is required: the binary uses it to load the config.
+```ts
+export default () => ({
+  "docker up": {
+    command: `docker compose --env-file "${process.env.ENVFILE || ".env"}" up -d`,
+    description: `start all containers`,
+  },
+  activate: {
+    command: `source venv/bin/activate`,
+    source: true, // runs in your current shell, so the virtualenv stays active
+    confirm: false,
+  },
+});
+```
+
+## Why xx
+
+- **The config is real code.** TypeScript or JavaScript, executed by node: build the scripts from env vars, shared snippets, loops, imports. No YAML, no template language.
+- **Commands can change your current shell.** With `source: true` a command is sourced instead of executed, so `cd`, `export` or `source venv/bin/activate` still apply after it ends. Ctrl+C in such a command does not close your terminal.
+- **Behaves like a normal command.** Arguments and stdin reach the script (`xx build --fast`, `cat dump.sql | xx "db import"`), its exit code comes back.
+- **Asks before running**, unless the command says `confirm: false`.
+- **Private or shared, your choice.** Put the config in `.git/xx.ts` to keep it only for yourself, or in `./xx.ts` to commit it for the team.
+- **Fast and dependency free.** A small Rust binary draws the menu. Nothing to `npm install`, no bundle.
+
+## Requirements
+
+- macOS (Apple silicon) or Linux (x64, arm64)
+- bash or zsh
+- node (22.18+ if the config is `xx.ts`; older versions work with `xx.js`, `xx.mjs`, `xx.cjs`)
+
+## How it works
+
+`xx` is two files, always from the same release:
+
+- `xx-bin`, a Rust binary: finds the config, asks node to load it, shows the menu and writes the script of the picked command to a file.
+- `xx.sh`, a shell wrapper sourced through an alias: executes that file. This split is what makes `source: true` possible, only the shell itself can source a script into itself. The wrapper works only with the binaries of its own release.
+
+## Contents
+
+- [Installation](#installation)
+- [Usage](#usage)
+- [Config](#config): where it is searched, file formats, all options
+- [Environment variables](#environment-variables)
+- [Arguments and stdin](#arguments-and-stdin)
+- [`source: true`](#source-true)
+- [Exit codes](#exit-codes)
+- [Development](#development)
 
 ## Installation
 
@@ -30,8 +78,6 @@ Go to [GitHub Releases](https://github.com/stopsopa/xx/releases), open the relea
 
 Both lines of the verification have to end with `OK`. Then come back here, **in the same terminal** (you are in the directory with the two files).
 
-Don't download them by hand into a clone of this repository: `xx.sh` from a release would overwrite `xx.sh` of the repository, which is the source the build generates wrappers from.
-
 ### 2. Install
 
 In the directory with the two downloaded files:
@@ -43,7 +89,7 @@ chmod 755 ~/.xx/xx-bin
 chmod 644 ~/.xx/xx.sh
 ```
 
-Add three lines to the startup file of your shell. Run the block for your shell once (it resolves the path of `node` you are using right now and writes it as a fixed path):
+Add four lines to the startup file of your shell. Run **one** of the two blocks, once: the first is for zsh (`~/.zshrc`), the second for bash (`~/.bashrc`) (it resolves the path of `node` you are using right now and writes it as a fixed path):
 
 ```sh
 cat <<EEE >> ~/.zshrc
@@ -73,8 +119,11 @@ What lands in the file (node installed with asdf as an example):
 # xx - https://github.com/stopsopa/xx
 export XX_BIN="~/.xx/xx-bin"
 export XX_NODE_BINARY="~/.asdf/installs/nodejs/24.12.0/bin/node"
+export XX_NODE_OPTIONS=
 alias xx='source ~/.xx/xx.sh'
 ```
+
+`XX_NODE_OPTIONS=` keeps `NODE_OPTIONS` of your shell (a debugger, memory flags...) away from node started by `xx`, see [Environment variables](#xx_node_options).
 
 `~/` at the beginning of a path means your home directory. Inside of quotes the shell leaves `~` as it is, `xx.sh` and the binary expand it themselves, in every path they read from env vars.
 
