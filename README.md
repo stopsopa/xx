@@ -44,7 +44,6 @@ chmod 644 ~/.xx/xx.sh
 Add three lines to the startup file of your shell. Run the block for your shell once (it resolves the path of `node` you are using right now and writes it as a fixed path):
 
 ```sh
-# zsh
 cat <<EEE >> ~/.zshrc
 
 # xx - https://github.com/stopsopa/xx
@@ -55,7 +54,6 @@ EEE
 ```
 
 ```sh
-# bash
 cat <<EEE >> ~/.bashrc
 
 # xx - https://github.com/stopsopa/xx
