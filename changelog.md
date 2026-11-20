@@ -26,4 +26,4 @@ First release of `xx` as a Rust binary + `xx.sh` wrapper. It replaces the node +
 - **`order`**: deterministic: stable sort, missing `order` counts as 0.
 - **Git worktrees**: `.git` being a file is resolved to the real git directory.
 - **`--lock` / `--unlock` / `--copy`**: removed.
-- **`--list [--json]`**, **`--version`**: new.
+- **`--list [--json]`**, **`--version`**, **`--env`**: new.

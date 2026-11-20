@@ -273,6 +273,20 @@ __xx_main() {
     echo "xx.sh ${__XX_VERSION}"
   fi
 
+  # values of all env vars used by xx, as this shell sees them.
+  # Before the check of the binary: it is here to find out what is wrong with the setup
+  if [[ "${#}" = "1" && "${1}" = "--env" ]]; then
+    cat <<EEE
+XX_NODE_BINARY >${XX_NODE_BINARY-}<
+XX_NODE_OPTIONS >${XX_NODE_OPTIONS-}<
+XX_BIN >${XX_BIN-}<
+XX_INIT_CONFIG >${XX_INIT_CONFIG-}<
+XX_CONFIRM >${XX_CONFIRM-}<
+XX_TMP >${XX_TMP-}<
+EEE
+    return 0
+  fi
+
   __xx_check_bin || return 1
 
   # these only print something, nothing to execute afterwards

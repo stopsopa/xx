@@ -265,6 +265,18 @@ In every variable holding a path, `~/` at the beginning means your home director
 | `XX_CONFIRM` | no | binary | `false` skips every "Run command?" question. |
 | `XX_TMP` | no | binary | Directory for generated scripts when there is no `.git`. |
 
+`xx --env` prints current values of all of them, exactly as your shell sees them. It works also when `XX_BIN` or `XX_NODE_BINARY` is wrong, so it is the first thing to run when `xx` complains about the setup:
+
+```
+$ xx --env
+XX_NODE_BINARY >~/.asdf/installs/nodejs/24.12.0/bin/node<
+XX_NODE_OPTIONS ><
+XX_BIN >~/.xx/xx-bin<
+XX_INIT_CONFIG ><
+XX_CONFIRM ><
+XX_TMP ><
+```
+
 ### `XX_BIN`
 
 Path to the xx binary (`xx-bin` from the release), `~/` at the beginning means home directory. Required, nothing is searched or guessed. `xx.sh` checks it on every call and refuses to continue, explaining why, when:

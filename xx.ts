@@ -1,4 +1,5 @@
 // xx menu of this repository (https://github.com/stopsopa/xx), templates for other projects are in templates/
+// TypeScript, ES module (export default). Executed by node directly (type stripping, node 22.18+).
 
 // in order to run any xx command with custom export env var:
 // (shopt -s expand_aliases; export ENVFILE=.env.ci; xx "docker up")
@@ -34,7 +35,17 @@ const esc = `printf '\n${GREEN}Press any key to continue (Esc to exit)...${RESET
 IFS= read -r -n1 k 2>/dev/null||IFS= read -r k;stty "$old"
 [ "$k" = "$(printf '\\033')" ]&&exit 0;`;
 
-module.exports = (setup) => {
+type Command = {
+  command: string;
+  description?: string;
+  source?: boolean;
+  confirm?: boolean;
+  order?: number;
+};
+
+type Commands = Record<string, Command>;
+
+export default (setup: Commands): Commands => {
   return {
     help: {
       command: `

@@ -37,6 +37,7 @@ alias xx='source ~/.xx/xx.sh'
         ▼
 xx.sh  (sourced, bash 3.2+ and zsh)
   1. __xx_check_bin: XX_BIN defined, exists, executable, md5 on the embedded list
+  1a. --env (the only argument): print values of XX_* env vars, return (before the check of XX_BIN)
   2. --help --version --list --init --esm --gen: run the binary, return its code
   3. everything else:
         GENERATED="$("${XX_BIN}" "$@" < /dev/null)" ; CODE=$?
@@ -161,7 +162,7 @@ xx.sh            source of the wrapper          bash/embed.sh    version + md5 i
 compile.sh       → bin/<arch>/xx and xx.sh      transpile.sh     templates/xx.ts → js, mjs, cjs
 test.sh          transpile, cargo test, e2e     tag.sh           semver bump, push tag
 validateenv.sh   toolchain check                bash/release_notes.sh  body of the release page
-templates/xx.ts  init.json  xx.cjs (menu of this repository)  package.json (esbuild only)
+templates/xx.ts  init.json  xx.ts (menu of this repository)  package.json (esbuild only)
 ```
 
 Dependencies: `libc`, `serde_json`, `unicode-width`. Arguments are parsed by hand, because everything after the command name must pass through untouched.

@@ -76,7 +76,7 @@ After changing `xx.sh` or anything in `src/` run `compile.sh` again, it refreshe
 
 To try it next to the old `xx` without replacing it, give the alias another name (`alias xxn=...`).
 
-This repository has its own `xx.cjs`, so inside of the clone `xx` shows: `help`, `validateenv`, `compile`, `test`, `release notes preview`, `publish`.
+This repository has its own `xx.ts`, so inside of the clone `xx` shows: `help`, `validateenv`, `compile`, `test`, `release notes preview`, `publish`.
 
 ## Running Tests Locally
 
@@ -122,7 +122,7 @@ init.json          default XX_INIT_CONFIG: where xx --init finds templates (GitH
 templates/         xx.ts, the template downloaded by xx --init (xx.js xx.mjs xx.cjs are generated, not committed)
 transpile.sh       generates templates/xx.js xx.mjs xx.cjs from templates/xx.ts (esbuild, bash/transpile.mjs)
 package.json       only dev dependency: esbuild
-xx.cjs             xx menu of this repository
+xx.ts              xx menu of this repository
 bash/              detect_arch.sh, embed.sh (md5 + version into xx.sh), release_notes.sh, file/fuzzy.ts
 test/              end to end tests
 ```

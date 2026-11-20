@@ -112,6 +112,9 @@ Environment variables:
                       ${{XX_TMP}}/xx-<uid>/<hash of pwd>.sh
                       (not defined: ${{TMPDIR}} of the system, then /tmp)
 
+  xx --env            print current values of all variables above (done by xx.sh, so it
+                      works also when XX_BIN or XX_NODE_BINARY is not set up correctly)
+
 Details: {HOMEPAGE}#environment-variables"
     );
 }
