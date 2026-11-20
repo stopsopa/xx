@@ -35,6 +35,13 @@ export XX_BIN="${BIN}"
 if [[ -z "${XX_NODE_BINARY}" ]]; then
   XX_NODE_BINARY="$(NODE_OPTIONS="" node -e 'console.log(process.execPath)')"
 fi
+
+# The developer can have it defined with "~/" at the beginning (that is what README.md suggests).
+# It has to become absolute path here, with the real HOME: tests replace HOME with empty directory
+# and xx would expand "~/" against that one.
+if [[ "${XX_NODE_BINARY}" == "~/"* ]]; then
+  XX_NODE_BINARY="${HOME}/${XX_NODE_BINARY:2}"
+fi
 export XX_NODE_BINARY
 
 if [[ ! -f "${XX_NODE_BINARY}" ]]; then
