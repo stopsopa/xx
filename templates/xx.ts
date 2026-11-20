@@ -1,9 +1,4 @@
-// template of xx config, flavour: xx.ts
-// TypeScript, ES module (export default). Executed by node directly (type stripping, node 22.18+).
-// Only syntax node can strip is allowed: no enum, no namespace, no parameter properties
-// project      : https://github.com/stopsopa/xx
-// this file    : https://github.com/stopsopa/xx/blob/main/templates/xx.ts
-// to get it    : xx --init ts
+// github edit  : https://github.com/stopsopa/xx/edit/main/templates/xx.ts
 
 // in order to run any xx command with custom export env var:
 // (shopt -s expand_aliases; export ENVFILE=.env.ci; xx "docker up")
