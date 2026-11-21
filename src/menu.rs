@@ -495,10 +495,15 @@ pub fn select(term: &mut dyn Term, list: &[Command]) -> Option<usize> {
  * Returns None when cancelled with Ctrl+C.
  */
 pub fn confirm(term: &mut dyn Term, name: &str) -> Option<bool> {
+    ask(term, "Run command?", name)
+}
+
+// the same question with other text, subject is what the question is about (shown in red)
+pub fn ask(term: &mut dyn Term, text: &str, subject: &str) -> Option<bool> {
     let (cols, _) = term.size();
     let question = format!(
-        "{GREEN}?{RESET} {BOLD}Run command?{RESET}     {RED}{}{RESET}   ",
-        truncate(name, cols.saturating_sub(30).max(10))
+        "{GREEN}?{RESET} {BOLD}{text}{RESET}     {RED}{}{RESET}   ",
+        truncate(subject, cols.saturating_sub(30).max(10))
     );
     term.write(&format!("\r\x1b[K{question}{DIM}(Y/n){RESET} "));
 

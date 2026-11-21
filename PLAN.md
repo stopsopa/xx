@@ -37,8 +37,9 @@ alias xx='source ~/.xx/xx.sh'
         ▼
 xx.sh  (sourced, bash 3.2+ and zsh)
   1. __xx_check_bin: XX_BIN defined, exists, executable, md5 on the embedded list
-  1a. --env (the only argument): print values of XX_* env vars, return (before the check of XX_BIN)
-  2. --help --version --list --init --esm --gen: run the binary, return its code
+  2. --help --version --list --init --esm --gen --env --update: run the binary, return its code
+     (--update: path of xx.sh itself is passed in __XX_SH_PATH, the binary can't know it)
+     (--env with broken XX_BIN: raw values of XX_* env vars are printed after the error)
   3. everything else:
         GENERATED="$("${XX_BIN}" "$@" < /dev/null)" ; CODE=$?
             │
@@ -65,7 +66,7 @@ Why stdout carries the path: the binary owns config lookup and the location of t
 
 **Stdin.** The binary and node are started with `< /dev/null`, the menu and the confirmation read keys from `/dev/tty`. So stdin of `xx` is still untouched when the wrapper runs the script: `echo data | xx name` and `xx name < file` reach the script, also when the command was picked from the menu.
 
-**`~/` in paths.** `XX_BIN`, `XX_NODE_BINARY`, `XX_INIT_CONFIG` (and paths inside its json) and `XX_TMP` may start with `~/`. The shell does not expand `~` inside quotes, so the wrapper and the binary (`locate::expand_tilde`) do it themselves.
+**`~/` in paths.** `XX_BIN`, `XX_NODE_BINARY`, `XX_INIT_CONFIG` (and paths inside its json), `XX_TMP` and `XX_RELEASES` may start with `~/`. The shell does not expand `~` inside quotes, so the wrapper and the binary (`locate::expand_tilde`) do it themselves.
 
 ## 4. Contract between `xx.sh` and the binary
 
@@ -77,6 +78,16 @@ Two files that must never be mixed between builds, so the wrapper verifies the b
 - The error shows both hashes plus the version of `xx.sh` and what the file answers to `--version`, because a mismatch usually means "different versions".
 
 `XX_BIN` is required; nothing is searched next to `xx.sh` or anywhere else.
+
+**`--update` (`src/update.rs`)** has to replace both files in one go, because of the contract above:
+
+- Nothing is scraped from the release page. `<releases>/latest` redirects to `.../tag/<tag>` (published releases only, no API rate limit), files are at `<releases>/download/<tag>/<file>`. `XX_RELEASES` may point to a local directory with the same layout (`latest` is then a file with the tag); the tests use that.
+- The platform is not detected at runtime: the running binary knows its compile target, that picks `xx-darwin-arm64`, `xx-linux-x64` or `xx-linux-arm64`.
+- The binary can't know where `xx.sh` is, the wrapper passes its own path in `__XX_SH_PATH` (`BASH_SOURCE`, in zsh `%x`).
+- Order: download next to the installed files (`<file>.new-<pid>`, same filesystem, so rename is atomic) → sha256 from `SHA256SUMS.txt` → test of the new pair → copies of the installed files (`<file>.old-<pid>`) → two renames → the same test with the installed files, on failure both old files are put back.
+- The test of the pair is `source xx.sh --version` in a real shell (`/bin/bash`, plus zsh when it is `$SHELL`) with `XX_BIN` set to the binary: the wrapper has to load, accept the md5 and the binary has to run here, both printing the expected tag.
+- No restart of the shell is needed because the alias sources `xx.sh` on every call. The call which runs the update keeps using functions already loaded in memory.
+- Not possible on purpose: updating an installation where the md5 check already fails (the wrapper would have to run a file it doesn't recognise), and updating a `dev` build.
 
 ## 5. Config: lookup, formats, loading
 
@@ -149,7 +160,8 @@ In bash, `echo data | xx name` with `source: true` cannot change the current she
 ## 9. Repository, tests, release
 
 ```
-src/main.rs      arguments, exit codes, --help --version --list --init --esm --gen, main flow
+src/main.rs      arguments, exit codes, --help --version --list --init --esm --gen --env, main flow
+src/update.rs    --update
 src/locate.rs    config lookup, git dir, generated-script path, ~/ expansion
 src/node.rs      XX_NODE_BINARY check, XX_NODE_OPTIONS
 src/loader.rs    runs node with loader.js, extracts the JSON

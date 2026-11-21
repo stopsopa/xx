@@ -26,6 +26,7 @@ mod menu;
 mod model;
 mod node;
 mod range;
+mod update;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -39,6 +40,7 @@ const HOMEPAGE: &str = "https://github.com/stopsopa/xx";
 // generated from templates/xx.ts by transpile.sh when Pages are published
 const INIT_CONFIG: &str = "https://stopsopa.github.io/xx/init.json";
 const ENV_INIT_CONFIG: &str = "XX_INIT_CONFIG";
+const RELEASES: &str = update::RELEASES;
 
 const EXIT_RUN: i32 = 0;
 const EXIT_SOURCE: i32 = 55;
@@ -71,6 +73,9 @@ Usage:
                              to .git/xx.<ext>, or to ./xx.<ext> if there is no .git
   xx --esm [path]            download template xx.ts (typescript, es module) to given path
                              (file or directory), default the same place as --init
+  xx --update [tag|--check]  replace xx.sh and the binary with the latest release (or given one,
+                             e.g. v0.1.0). Both files are downloaded, verified and tested
+                             together before anything is replaced. --check only reports
   xx --help
   xx --version
 
@@ -111,9 +116,11 @@ Environment variables:
   XX_TMP              directory for generated scripts when there is no .git:
                       ${{XX_TMP}}/xx-<uid>/<hash of pwd>.sh
                       (not defined: ${{TMPDIR}} of the system, then /tmp)
+  XX_RELEASES         used by --update: url or directory with releases
+                      default: {RELEASES}
 
-  xx --env            print current values of all variables above (done by xx.sh, so it
-                      works also when XX_BIN or XX_NODE_BINARY is not set up correctly)
+  xx --env            table of all variables above: value, default and final value
+                      which xx really uses right now (after defaults and expanding \"~/\")
 
 Details: {HOMEPAGE}#environment-variables"
     );
@@ -133,15 +140,153 @@ fn home() -> Option<PathBuf> {
 // <XX_TMP>/xx-<uid>/<hash of cwd>.sh
 fn fallback_generated(cwd: &Path) -> PathBuf {
     // XX_TMP, then TMPDIR which the system provides (macOS: private directory of the user), then /tmp
-    let tmp = ["XX_TMP", "TMPDIR"]
+    locate::tmp_generated(&tmp_dir(), uid(), cwd)
+}
+
+fn uid() -> u32 {
+    // SAFETY: getuid has no preconditions and can't fail
+    unsafe { libc::getuid() }
+}
+
+fn tmp_dir() -> PathBuf {
+    ["XX_TMP", "TMPDIR"]
         .iter()
         .filter_map(|name| std::env::var(name).ok())
         .find(|t| !t.is_empty())
         .map(|t| PathBuf::from(locate::expand_tilde(&t, home().as_deref())))
-        .unwrap_or_else(|| PathBuf::from("/tmp"));
-    // SAFETY: getuid has no preconditions and can't fail
-    let uid = unsafe { libc::getuid() };
-    locate::tmp_generated(&tmp, uid, cwd)
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
+}
+
+// where --init and --esm take the list of templates from: url or path ("~/" already expanded)
+fn init_config_source() -> String {
+    let source = match std::env::var(ENV_INIT_CONFIG) {
+        Ok(u) if !u.trim().is_empty() => u.trim().to_string(),
+        _ => INIT_CONFIG.to_string(),
+    };
+    if is_url(&source) {
+        source
+    } else {
+        locate::expand_tilde(
+            source.strip_prefix("file://").unwrap_or(&source),
+            home().as_deref(),
+        )
+    }
+}
+
+/**
+ * xx --env
+ *
+ * One row for every env var xx reacts to:
+ *   value   - what is in the environment right now
+ *   default - what is used when the variable is not defined
+ *   final   - what xx really works with, after defaults and expanding "~/"
+ */
+fn env() {
+    let home = home();
+    let raw = |name: &str| match std::env::var(name) {
+        Ok(v) => format!(">{v}<"),
+        Err(_) => "not defined".to_string(),
+    };
+    let path = |name: &str| match std::env::var(name) {
+        Ok(v) if !v.trim().is_empty() => {
+            format!(">{}<", locate::expand_tilde(v.trim(), home.as_deref()))
+        }
+        _ => "missing, it is required".to_string(),
+    };
+
+    let node = node::resolve(home.as_deref());
+
+    let rows: Vec<[String; 4]> = vec![
+        [
+            "name".to_string(),
+            "value".to_string(),
+            "default".to_string(),
+            "final (used by xx right now)".to_string(),
+        ],
+        [
+            node::ENV_BINARY.to_string(),
+            raw(node::ENV_BINARY),
+            "none, required".to_string(),
+            match &node {
+                Ok(n) => format!(">{}< (node {})", n.path, n.version),
+                Err(_) => format!("{} (not usable, see below)", path(node::ENV_BINARY)),
+            },
+        ],
+        [
+            node::ENV_OPTIONS.to_string(),
+            raw(node::ENV_OPTIONS),
+            "${NODE_OPTIONS}".to_string(),
+            format!(
+                "NODE_OPTIONS of node: {}",
+                match std::env::var(node::ENV_OPTIONS) {
+                    Ok(v) => format!(">{v}<"),
+                    Err(_) => raw("NODE_OPTIONS"),
+                }
+            ),
+        ],
+        [
+            "XX_BIN".to_string(),
+            raw("XX_BIN"),
+            "none, required".to_string(),
+            path("XX_BIN"),
+        ],
+        [
+            ENV_INIT_CONFIG.to_string(),
+            raw(ENV_INIT_CONFIG),
+            INIT_CONFIG.to_string(),
+            format!(">{}<", init_config_source()),
+        ],
+        [
+            "XX_CONFIRM".to_string(),
+            raw("XX_CONFIRM"),
+            "true".to_string(),
+            if std::env::var("XX_CONFIRM").as_deref() == Ok("false") {
+                "false (never ask \"Run command?\")".to_string()
+            } else {
+                "true (ask, unless the command has confirm: false)".to_string()
+            },
+        ],
+        [
+            "XX_TMP".to_string(),
+            raw("XX_TMP"),
+            "${TMPDIR}, then /tmp".to_string(),
+            format!(
+                ">{}< (scripts in >{}<)",
+                tmp_dir().display(),
+                tmp_dir().join(format!("xx-{}", uid())).display()
+            ),
+        ],
+        [
+            update::ENV_RELEASES.to_string(),
+            raw(update::ENV_RELEASES),
+            update::RELEASES.to_string(),
+            format!(">{}<", update::releases()),
+        ],
+    ];
+
+    let mut widths = [0usize; 3];
+    for row in &rows {
+        for (i, w) in widths.iter_mut().enumerate() {
+            *w = (*w).max(row[i].chars().count());
+        }
+    }
+    for row in &rows {
+        println!(
+            "{:<a$} | {:<b$} | {:<c$} | {}",
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            a = widths[0],
+            b = widths[1],
+            c = widths[2]
+        );
+    }
+
+    if let Err(e) = node {
+        eprintln!("\nxx error: {e}");
+        exit(1);
+    }
 }
 
 fn locate_or_fail(cwd: &Path) -> locate::Located {
@@ -349,22 +494,7 @@ fn init(kind: &str, target: Option<&str>) {
         fail(&format!("file >{}< already exist", target.display()));
     }
 
-    let config_source = match std::env::var(ENV_INIT_CONFIG) {
-        Ok(u) if !u.trim().is_empty() => u.trim().to_string(),
-        _ => INIT_CONFIG.to_string(),
-    };
-
-    // local path: "~/" at the beginning means home directory
-    let config_source = if is_url(&config_source) {
-        config_source
-    } else {
-        locate::expand_tilde(
-            config_source
-                .strip_prefix("file://")
-                .unwrap_or(&config_source),
-            home().as_deref(),
-        )
-    };
+    let config_source = init_config_source();
 
     let config_bytes = fetch(&config_source, &cwd)
         .unwrap_or_else(|e| fail(&format!("{ENV_INIT_CONFIG}=>{config_source}<: {e}")));
@@ -529,6 +659,11 @@ fn main() {
     match args.first().map(String::as_str) {
         Some("--help") | Some("-h") => return help(),
         Some("--version") | Some("-V") => return println!("xx {VERSION}"),
+        // only as the only argument, otherwise it is a name of a command like any other
+        Some("--env") if args.len() == 1 => return env(),
+        Some("--update") => {
+            return update::update(&args[1..]).unwrap_or_else(|e| fail(&e));
+        }
         _ => {}
     }
 

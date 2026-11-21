@@ -103,12 +103,14 @@ Things worth knowing when writing a test:
 - `write_config` and `check_config` from `test/_lib.sh` create a config of given flavour (`ts`, `esm`, `cjs`) and check that it is listed, generated and executed (see `test/test019`).
 - `xx --init` in tests never touches the network: `XX_INIT_CONFIG` points to a local json with local paths (see `test/test016`).
 - The menu is driven without a terminal: `XX_TEST_KEYS="down,down,enter"` (list of keys in `src/menu.rs`, struct `Scripted`). What would be drawn goes to stderr. `XX_TEST_SIZE="60x20"` sets size of the "terminal".
+- `test/test025` (`--update`) needs binaries with real versions (a `dev` build refuses to update), so it runs `cargo build` twice with `XX_VERSION` set and fakes releases in a local directory (`XX_RELEASES`). After it `target/` holds a binary with version `v9.9.9`; `bin/<arch>/xx` is not touched and the next `compile.sh` builds `dev` again.
 - Real terminal behaviour (Ctrl+C, escape sequences of arrow keys) is tested only in `test/test018` through `terminal.py`. It waits for prompts and expected text, never for a fixed time; keep it that way, fixed sleeps made this test take 15 seconds.
 
 ## Layout
 
 ```
-src/main.rs        arguments, exit codes, --help --version --list --init --esm --gen, main flow
+src/main.rs        arguments, exit codes, --help --version --list --init --esm --gen --env, main flow
+src/update.rs      --update: latest release, download, checksums, test of the pair, replacing both files
 src/locate.rs      where is the config, where to write the generated script
 src/node.rs        XX_NODE_BINARY check, XX_NODE_OPTIONS
 src/loader.rs      runs node with loader.js, reads list of commands

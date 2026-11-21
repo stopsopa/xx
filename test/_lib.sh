@@ -58,6 +58,7 @@ unset XXCONFIRM
 unset XX_TEST_KEYS
 unset XX_TEST_SIZE
 unset XX_INIT_CONFIG
+unset XX_RELEASES
 
 WORK="$(cd "$(mktemp -d)" && pwd -P)"
 
@@ -68,6 +69,9 @@ mkdir -p "${WORK}/home" "${WORK}/project" "${WORK}/tmp"
 # without .git the generated script goes to ${XX_TMP}/xx-<uid>/<hash of pwd>.sh
 export XX_TMP="${WORK}/tmp"
 TMP_GEN_DIR="${XX_TMP}/xx-$(id -u)"
+
+# for tools which need their config from the real one (cargo, rustup)
+REAL_HOME="${HOME}"
 
 export HOME="${WORK}/home"
 

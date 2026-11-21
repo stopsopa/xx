@@ -59,6 +59,7 @@ export default () => ({
 ## Contents
 
 - [Installation](#installation)
+- [Update](#update)
 - [Usage](#usage)
 - [Config](#config): where it is searched, file formats, all options
 - [Environment variables](#environment-variables)
@@ -148,6 +149,50 @@ To update: repeat steps 1 and the `cp` + `chmod` part of step 2 with a newer rel
 
 After changing version of node (asdf, nvm...) update `XX_NODE_BINARY`, `xx` tells you when the path stops working.
 
+## Update
+
+```sh
+xx --update --check    # only says which version is installed and which is the latest
+xx --update            # update to the latest release
+xx --update v0.1.0     # install given release, also an older one
+```
+
+`xx.sh` and the binary work only as a pair (see [`XX_BIN`](#xx_bin)), so both are always replaced together, in the places they are installed now: the binary where `XX_BIN` points to, `xx.sh` where your alias sources it from. Nothing else changes, your shell rc file is not touched and the terminal doesn't have to be restarted: the alias sources `xx.sh` again on every call.
+
+What happens after you confirm (`XX_CONFIRM=false` skips the question):
+
+1. `SHA256SUMS.txt`, `xx.sh` and the binary for your platform are downloaded next to the installed files, under temporary names. The platform doesn't have to be detected: the binary which is running knows what it was built for.
+2. Checksums of both files are verified.
+3. The new pair is tested: the new `xx.sh` is sourced in a real shell (`/bin/bash`, and zsh if that is your shell) with the new binary and asked for `--version`. That proves the wrapper loads, accepts the binary and the binary runs on this machine, both reporting the expected version.
+4. Only now the installed files are replaced (two atomic renames).
+5. The same test once more with the installed files. If it fails, or the second file can't be replaced, both previous files are put back.
+
+If anything goes wrong in steps 1 to 3 nothing installed was touched.
+
+```
+$ xx --update
+installed: v0.1.0
+latest: v0.2.0
+files to replace:
+  /home/me/.xx/xx.sh
+  /home/me/.xx/xx-bin
+? Update xx?     v0.1.0 -> v0.2.0   yes
+  downloading https://github.com/stopsopa/xx/releases/download/v0.2.0/SHA256SUMS.txt
+  downloading https://github.com/stopsopa/xx/releases/download/v0.2.0/xx-linux-x64
+  checksum ok: xx-linux-x64
+  downloading https://github.com/stopsopa/xx/releases/download/v0.2.0/xx.sh
+  checksum ok: xx.sh
+  test ok: downloaded xx.sh works with downloaded binary
+  test ok: installed xx.sh works with installed binary
+xx updated: v0.1.0 -> v0.2.0
+```
+
+Limits:
+
+- An installation which is already broken (`xx.sh` refusing the binary) can't update itself, because `xx.sh` never runs a binary it doesn't recognise. Install both files again from the [release page](https://github.com/stopsopa/xx/releases).
+- A local build (version `dev`) is not a release and refuses to update.
+- Checksums come from the same place as the files: they protect against a broken download, not against a compromised release.
+
 ## Usage
 
 ```sh
@@ -160,6 +205,7 @@ xx --gen [name|number]      # write and print the script, don't run it
 xx --list [--json]          # print commands
 xx --init [ts|js|mjs|cjs]   # download template of the config, default ts
 xx --esm [path]             # download template xx.ts to given file or directory
+xx --update [tag|--check]   # replace xx.sh and the binary with the latest (or given) release
 xx --help
 xx --version
 ```
@@ -264,18 +310,23 @@ In every variable holding a path, `~/` at the beginning means your home director
 | `XX_INIT_CONFIG` | no | binary | URL or path of json listing where the templates are. |
 | `XX_CONFIRM` | no | binary | `false` skips every "Run command?" question. |
 | `XX_TMP` | no | binary | Directory for generated scripts when there is no `.git`. |
+| `XX_RELEASES` | no | binary | Where `--update` takes releases from. |
 
-`xx --env` prints current values of all of them, exactly as your shell sees them. It works also when `XX_BIN` or `XX_NODE_BINARY` is wrong, so it is the first thing to run when `xx` complains about the setup:
+`xx --env` shows all of them in a table: what is in the environment, what is the default and the final value `xx` really works with right now (after applying defaults and expanding `~/`):
 
 ```
 $ xx --env
-XX_NODE_BINARY >~/.asdf/installs/nodejs/24.12.0/bin/node<
-XX_NODE_OPTIONS ><
-XX_BIN >~/.xx/xx-bin<
-XX_INIT_CONFIG ><
-XX_CONFIRM ><
-XX_TMP ><
+name            | value                                    | default                                 | final (used by xx right now)
+XX_NODE_BINARY  | >~/.nvm/versions/node/v24.22.1/bin/node< | none, required                          | >/home/me/.nvm/versions/node/v24.22.1/bin/node< (node v24.22.1)
+XX_NODE_OPTIONS | ><                                       | ${NODE_OPTIONS}                         | NODE_OPTIONS of node: ><
+XX_BIN          | >~/.xx/xx-bin<                           | none, required                          | >/home/me/.xx/xx-bin<
+XX_INIT_CONFIG  | not defined                              | https://stopsopa.github.io/xx/init.json | >https://stopsopa.github.io/xx/init.json<
+XX_CONFIRM      | not defined                              | true                                    | true (ask, unless the command has confirm: false)
+XX_TMP          | not defined                              | ${TMPDIR}, then /tmp                    | >/tmp< (scripts in >/tmp/xx-1000<)
+XX_RELEASES     | not defined                              | https://github.com/stopsopa/xx/releases | >https://github.com/stopsopa/xx/releases<
 ```
+
+`not defined` and `><` (defined, empty) are different things, it matters for `XX_NODE_OPTIONS`. When `XX_NODE_BINARY` is wrong the reason is printed under the table. When `XX_BIN` is wrong the table can't be printed (it comes from the binary): `xx.sh` says what is wrong with `XX_BIN` and prints just the raw values.
 
 ### `XX_BIN`
 
@@ -342,6 +393,13 @@ Used by `xx --init` and `xx --esm`. URL (`http://`, `https://`) or path (also st
 When there is no `.git` directory the script of the picked command is written to `${XX_TMP}/xx-<uid>/<hash of pwd>.sh`. `XX_TMP` has to be an existing directory (`~/` at the beginning means home directory). When it is not defined the standard `TMPDIR` of the system is used, and `/tmp` when that is not defined either, so normally there is nothing to set.
 
 The directory `xx-<uid>` is created private for the user (`700`), `xx` refuses to use it if it belongs to somebody else or is writable by others. One file per directory, so `xx` running in two directories at once don't overwrite each other's script.
+
+### `XX_RELEASES`
+
+Used by `--update`: URL or local directory (`~/` at the beginning means home directory) with the same layout GitHub releases have. Default: `https://github.com/stopsopa/xx/releases`. Useful for a mirror and for tests.
+
+- `<XX_RELEASES>/latest`: for a URL it has to redirect to `.../tag/<tag>`, in a directory it is a file containing the tag.
+- `<XX_RELEASES>/download/<tag>/`: `xx.sh`, `SHA256SUMS.txt` and the binaries (`xx-darwin-arm64`, `xx-linux-x64`, `xx-linux-arm64`).
 
 ## Arguments and stdin
 

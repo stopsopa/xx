@@ -273,21 +273,45 @@ __xx_main() {
     echo "xx.sh ${__XX_VERSION}"
   fi
 
-  # values of all env vars used by xx, as this shell sees them.
-  # Before the check of the binary: it is here to find out what is wrong with the setup
+  # table of all env vars used by xx is printed by the binary (it knows defaults and final values).
+  # When the binary can't be used the reason is printed and then at least the raw values
   if [[ "${#}" = "1" && "${1}" = "--env" ]]; then
-    cat <<EEE
+    if __xx_check_bin; then
+      "${__XX_BIN_PATH}" --env < /dev/null
+      return "${?}"
+    fi
+    cat <<EEE >&2
+
+values of env vars as this shell sees them:
 XX_NODE_BINARY >${XX_NODE_BINARY-}<
 XX_NODE_OPTIONS >${XX_NODE_OPTIONS-}<
 XX_BIN >${XX_BIN-}<
 XX_INIT_CONFIG >${XX_INIT_CONFIG-}<
 XX_CONFIRM >${XX_CONFIRM-}<
 XX_TMP >${XX_TMP-}<
+XX_RELEASES >${XX_RELEASES-}<
 EEE
-    return 0
+    return 1
   fi
 
   __xx_check_bin || return 1
+
+  # the binary replaces itself and this file, only this file knows where it is
+  if [[ "${1}" = "--update" ]]; then
+    local __XX_SELF
+    if [ -n "${ZSH_VERSION}" ]; then
+      # eval: bash would not be able to parse it
+      eval '__XX_SELF="${(%):-%x}"'
+    else
+      __XX_SELF="${BASH_SOURCE[0]}"
+    fi
+    case "${__XX_SELF}" in
+      /*) ;;
+      *) __XX_SELF="${PWD}/${__XX_SELF}" ;;
+    esac
+    __XX_SH_PATH="${__XX_SELF}" "${__XX_BIN_PATH}" "${@}" < /dev/null
+    return "${?}"
+  fi
 
   # these only print something, nothing to execute afterwards
   case "${1}" in
