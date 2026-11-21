@@ -146,11 +146,11 @@ Described at the top of `src/main.rs` and `xx.sh`, covered by `test/test017` and
 
 There is one workflow, `.github/workflows/rust.yml`, so one push gives one run. What it does depends on what was pushed:
 
-| Pushed | Jobs |
-| --- | --- |
+| Pushed             | Jobs                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------- |
 | any branch, any PR | `test` → `build-matrix` (tests on Linux x64, then binaries for all platforms to prove they build) |
-| `main` | the same, and after `test` passes: `pages-build` → `pages-deploy` (GitHub Pages) |
-| a tag | the same as any branch, and after `build-matrix`: `release` (GitHub Release) |
+| `main`             | the same, and after `test` passes: `pages-build` → `pages-deploy` (GitHub Pages)                  |
+| a tag              | the same as any branch, and after `build-matrix`: `release` (GitHub Release)                      |
 
 - Nothing is published when tests fail: neither Pages nor a release.
 - Jobs which don't apply are shown as skipped in the run.
@@ -158,6 +158,7 @@ There is one workflow, `.github/workflows/rust.yml`, so one push gives one run. 
 - Actions → "CI, Release & Pages" → Run workflow starts it by hand (on `main` it republishes Pages).
 
 ### Target Platforms Built in CI/CD
+
 - **macOS arm64** (`aarch64-apple-darwin` → `xx-darwin-arm64`)
 - **Linux x64** (`x86_64-unknown-linux-gnu` → `xx-linux-x64`)
 - **Linux arm64** (`aarch64-unknown-linux-gnu` → `xx-linux-arm64`)
@@ -189,6 +190,7 @@ Every release also contains one `xx.sh` with the tag and md5 of all three binari
    Before asking for confirmation it warns when: there are uncommitted changes (they will not be in the release), current commit is not pushed, `changelog.md` has no section for the new tag. If pushing the tag fails the local tag is removed, so the next run doesn't skip a version.
 
 Example session:
+
 ```text
 Fetching git tags...
 

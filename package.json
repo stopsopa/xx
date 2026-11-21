@@ -1,9 +1,10 @@
 {
   "name": "xx-dev",
   "private": true,
-  "description": "development dependencies of https://github.com/stopsopa/xx - only for transpile.sh (templates/xx.ts -> xx.js, xx.mjs, xx.cjs)",
+  "description": "development dependencies of https://github.com/stopsopa/xx - esbuild for transpile.sh (templates/xx.ts -> xx.js, xx.mjs, xx.cjs), prettier for formatting (xx style:*)",
   "type": "module",
   "devDependencies": {
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "prettier": "3.10.1"
   }
 }

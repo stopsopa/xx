@@ -219,30 +219,30 @@ In the menu: `↑` `↓` move (wraps around), `Home` `End` `PgUp` `PgDn`, `Enter
 
 First found wins, checked in this order:
 
-| # | Config | Generated script |
-| --- | --- | --- |
-| 1 | `.git/xx.ts`, `.git/xx.js`, `.git/xx.mjs`, `.git/xx.cjs` | `.git/xx_generated.sh` |
-| 2 | `./xx.ts`, `./xx.js`, `./xx.mjs`, `./xx.cjs` | `.git/xx_generated.sh`, without `.git`: `${XX_TMP}/xx-<uid>/<hash of pwd>.sh` |
-| 3 | `~/xx.ts`, `~/xx.js`, `~/xx.mjs`, `~/xx.cjs` | `${XX_TMP}/xx-<uid>/<hash of pwd>.sh` |
+| #   | Config                                                   | Generated script                                                              |
+| --- | -------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1   | `.git/xx.ts`, `.git/xx.js`, `.git/xx.mjs`, `.git/xx.cjs` | `.git/xx_generated.sh`                                                        |
+| 2   | `./xx.ts`, `./xx.js`, `./xx.mjs`, `./xx.cjs`             | `.git/xx_generated.sh`, without `.git`: `${XX_TMP}/xx-<uid>/<hash of pwd>.sh` |
+| 3   | `~/xx.ts`, `~/xx.js`, `~/xx.mjs`, `~/xx.cjs`             | `${XX_TMP}/xx-<uid>/<hash of pwd>.sh`                                         |
 
 Only the current directory is checked, parent directories are not.
 
 ### Which extension, which module format
 
-| File | Format | Depends on `package.json`? |
-| --- | --- | --- |
-| `xx.ts` | TypeScript, ES module: `export default` | like `xx.js`, see below |
-| `xx.js` | ES module **or** CommonJS, your choice | yes |
-| `xx.mjs` | always ES module: `export default` | no |
-| `xx.cjs` | always CommonJS: `module.exports =` | no |
+| File     | Format                                  | Depends on `package.json`? |
+| -------- | --------------------------------------- | -------------------------- |
+| `xx.ts`  | TypeScript, ES module: `export default` | like `xx.js`, see below    |
+| `xx.js`  | ES module **or** CommonJS, your choice  | yes                        |
+| `xx.mjs` | always ES module: `export default`      | no                         |
+| `xx.cjs` | always CommonJS: `module.exports =`     | no                         |
 
 Rules of node apply, `xx` adds nothing of its own. For `xx.js` and `xx.ts` node looks at `"type"` in the nearest `package.json` (for `.git/xx.js` that is `package.json` of the project):
 
-| `"type"` in `package.json` | `xx.js` / `xx.ts` has to be written as |
-| --- | --- |
+| `"type"` in `package.json`              | `xx.js` / `xx.ts` has to be written as      |
+| --------------------------------------- | ------------------------------------------- |
 | no `package.json`, or no `"type"` in it | either one, node detects it from the syntax |
-| `"module"` | ES module |
-| `"commonjs"` | CommonJS |
+| `"module"`                              | ES module                                   |
+| `"commonjs"`                            | CommonJS                                    |
 
 So `xx.ts` with `export default` works everywhere except a project which says `"type": "commonjs"` explicitly. `xx.mjs` and `xx.cjs` are the way to force the format no matter what `package.json` says.
 
@@ -303,15 +303,15 @@ The same in CommonJS (`xx.cjs`, or `xx.js`): `module.exports = (setup, ctx) => {
 
 In every variable holding a path, `~/` at the beginning means your home directory (the shell doesn't expand `~` inside of quotes, so `xx` does).
 
-| Variable | Required | Read by | What it expects |
-| --- | --- | --- | --- |
-| `XX_BIN` | yes | `xx.sh` | Path to the xx binary. |
-| `XX_NODE_BINARY` | yes | binary | Absolute path to the node binary. |
-| `XX_NODE_OPTIONS` | no | binary | Value for `NODE_OPTIONS` of node started by `xx`. |
-| `XX_INIT_CONFIG` | no | binary | URL or path of json listing where the templates are. |
-| `XX_CONFIRM` | no | binary | `false` skips every "Run command?" question. |
-| `XX_TMP` | no | binary | Directory for generated scripts when there is no `.git`. |
-| `XX_RELEASES` | no | binary | Where `--update` takes releases from. |
+| Variable          | Required | Read by | What it expects                                          |
+| ----------------- | -------- | ------- | -------------------------------------------------------- |
+| `XX_BIN`          | yes      | `xx.sh` | Path to the xx binary.                                   |
+| `XX_NODE_BINARY`  | yes      | binary  | Absolute path to the node binary.                        |
+| `XX_NODE_OPTIONS` | no       | binary  | Value for `NODE_OPTIONS` of node started by `xx`.        |
+| `XX_INIT_CONFIG`  | no       | binary  | URL or path of json listing where the templates are.     |
+| `XX_CONFIRM`      | no       | binary  | `false` skips every "Run command?" question.             |
+| `XX_TMP`          | no       | binary  | Directory for generated scripts when there is no `.git`. |
+| `XX_RELEASES`     | no       | binary  | Where `--update` takes releases from.                    |
 
 `xx --env` shows all of them in a table: what is in the environment, what is the default and the final value `xx` really works with right now (after applying defaults and expanding `~/`):
 

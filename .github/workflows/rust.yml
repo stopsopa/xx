@@ -14,8 +14,8 @@ name: CI, Release & Pages
 
 on:
   push:
-    branches: [ "**" ]
-    tags: [ "**" ]
+    branches: ["**"]
+    tags: ["**"]
   pull_request:
   # manual run from Actions tab (on main it republishes Pages)
   workflow_dispatch:
@@ -50,9 +50,13 @@ jobs:
       - name: Compile binary
         run: /bin/bash compile.sh
 
-      # esbuild for transpile.sh, test.sh generates templates/xx.js xx.mjs xx.cjs with it
+      # esbuild for transpile.sh (test.sh generates templates/xx.js xx.mjs xx.cjs with it) and prettier
       - name: Install npm dependencies
         run: npm ci
+
+      # the same as "xx style:check", fix locally with "xx style:fix"
+      - name: Check formatting (prettier)
+        run: ./node_modules/.bin/prettier --config prettier.config.cjs --check .
 
       - name: Run unit and E2E tests
         run: /bin/bash test.sh

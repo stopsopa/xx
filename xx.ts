@@ -111,6 +111,30 @@ set -e
       description: `create and push new tag, github actions will build and publish the release`,
       confirm: false,
     },
+    [`style:check`]: {
+      command: `
+set -e
+./node_modules/.bin/prettier --config prettier.config.cjs --check .
+`,
+      description: `prettier: check formatting of all files (the same check runs in CI)`,
+      confirm: false,
+    },
+    [`style:fix`]: {
+      command: `
+set -e
+./node_modules/.bin/prettier --config prettier.config.cjs --write .
+`,
+      description: `prettier: format all files in place`,
+      confirm: false,
+    },
+    [`style:list`]: {
+      command: `
+set -e
+./node_modules/.bin/prettier --config prettier.config.cjs --list-different .
+`,
+      description: `prettier: list files which are not formatted`,
+      confirm: false,
+    },
 
     ...setup,
   };

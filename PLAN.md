@@ -6,26 +6,26 @@ This file started as the implementation plan. It now describes **what was built 
 
 ## 1. Decisions in short
 
-| Question | Decision |
-| --- | --- |
-| Config language | JavaScript / TypeScript, the same contract the old `xx.cjs` had. Old files work unchanged. |
-| How Rust reads the config | The binary starts the installed `node` (`XX_NODE_BINARY`) with a small loader compiled into the binary. The loader prints the commands as JSON. Node is **not** embedded. |
-| Who draws the menu | The binary, on `/dev/tty`, raw mode through `libc`. No terminal library. |
-| Who executes the script | **The shell wrapper `xx.sh`**, never the binary. It is the only way `source: true` can change the current shell. |
-| Binary → wrapper protocol | stdout = path of the generated script, exit code = what to do with it. |
-| Wrapper → binary trust | `xx.sh` accepts only a binary whose md5 was embedded into it by the build. |
-| Repo layout, tests, CI, releases | Modelled on `stopsopa/securenv`, with the differences xx needs (section 9). |
+| Question                         | Decision                                                                                                                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Config language                  | JavaScript / TypeScript, the same contract the old `xx.cjs` had. Old files work unchanged.                                                                                |
+| How Rust reads the config        | The binary starts the installed `node` (`XX_NODE_BINARY`) with a small loader compiled into the binary. The loader prints the commands as JSON. Node is **not** embedded. |
+| Who draws the menu               | The binary, on `/dev/tty`, raw mode through `libc`. No terminal library.                                                                                                  |
+| Who executes the script          | **The shell wrapper `xx.sh`**, never the binary. It is the only way `source: true` can change the current shell.                                                          |
+| Binary → wrapper protocol        | stdout = path of the generated script, exit code = what to do with it.                                                                                                    |
+| Wrapper → binary trust           | `xx.sh` accepts only a binary whose md5 was embedded into it by the build.                                                                                                |
+| Repo layout, tests, CI, releases | Modelled on `stopsopa/securenv`, with the differences xx needs (section 9).                                                                                               |
 
 ## 2. Why JS, and why node is still needed
 
 Requirements were: inject env vars, complete freedom in generating the final script, existing `xx.cjs` files keep working.
 
-| Option | Verdict |
-| --- | --- |
-| Config evaluated by a `node` subprocess | **chosen**: full Node (`fs`, `child_process`, imports, `process.env`), 100% backward compatible |
+| Option                                     | Verdict                                                                                                                                             |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Config evaluated by a `node` subprocess    | **chosen**: full Node (`fs`, `child_process`, imports, `process.env`), 100% backward compatible                                                     |
 | JS engine embedded in the binary (QuickJS) | rejected for now: no node needed and faster, but `require`, `fs`, `process` would have to be re-implemented and configs using Node APIs would break |
-| TOML / YAML + templating | rejected: cannot do shared snippets, computed keys, spreading; ends up as a worse JS |
-| Lua / Rhai / Starlark | rejected: new language, no backward compatibility |
+| TOML / YAML + templating                   | rejected: cannot do shared snippets, computed keys, spreading; ends up as a worse JS                                                                |
+| Lua / Rhai / Starlark                      | rejected: new language, no backward compatibility                                                                                                   |
 
 Honest cost of this choice: with node still required, Rust buys little speed (one node start per run, roughly 30–50 ms, stays). What it does buy: no bundle, no npm dependencies at runtime, and a menu fully under our control (the inquirer highlight kept breaking on upgrades).
 
@@ -93,11 +93,11 @@ Two files that must never be mixed between builds, so the wrapper verifies the b
 
 Lookup, first found wins. In every directory the order is `xx.ts`, `xx.js`, `xx.mjs`, `xx.cjs`:
 
-| Config in | Generated script |
-| --- | --- |
-| `.git/` | `.git/xx_generated.sh` |
-| `./` and `.git` exists | `.git/xx_generated.sh` |
-| `./` without `.git` | `${XX_TMP}/xx-<uid>/<hash of pwd>.sh` |
+| Config in                             | Generated script                      |
+| ------------------------------------- | ------------------------------------- |
+| `.git/`                               | `.git/xx_generated.sh`                |
+| `./` and `.git` exists                | `.git/xx_generated.sh`                |
+| `./` without `.git`                   | `${XX_TMP}/xx-<uid>/<hash of pwd>.sh` |
 | `~/` (only when nothing above exists) | `${XX_TMP}/xx-<uid>/<hash of pwd>.sh` |
 
 - Only the current directory is checked, no walking up. `~/xx.*` is a fallback, it is not merged into project menus (undecided, see section 10).
