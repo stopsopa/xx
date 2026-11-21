@@ -125,7 +125,7 @@ export XX_NODE_OPTIONS=
 alias xx='source ~/.xx/xx.sh'
 ```
 
-`XX_NODE_OPTIONS=` keeps `NODE_OPTIONS` of your shell (a debugger, memory flags...) away from node started by `xx`, see [Environment variables](#xx_node_options).
+`XX_NODE_OPTIONS=` left empty changes nothing, it is there to be filled when you need it: it replaces `NODE_OPTIONS` of your shell (a debugger, memory flags...) for node started by `xx`, see [Environment variables](#xx_node_options).
 
 `~/` at the beginning of a path means your home directory. Inside of quotes the shell leaves `~` as it is, `xx.sh` and the binary expand it themselves, in every path they read from env vars.
 
@@ -319,7 +319,7 @@ In every variable holding a path, `~/` at the beginning means your home director
 $ xx --env
 name            | value                                    | default                                 | final (used by xx right now)
 XX_NODE_BINARY  | >~/.nvm/versions/node/v24.22.1/bin/node< | none, required                          | >/home/me/.nvm/versions/node/v24.22.1/bin/node< (node v24.22.1)
-XX_NODE_OPTIONS | ><                                       | ${NODE_OPTIONS}                         | >< (XX_NODE_OPTIONS is defined, ${NODE_OPTIONS} is ignored)
+XX_NODE_OPTIONS | ><                                       | ${NODE_OPTIONS}                         | >--inspect< (taken from ${NODE_OPTIONS})
 XX_BIN          | >~/.xx/xx-bin<                           | none, required                          | >/home/me/.xx/xx-bin<
 XX_INIT_CONFIG  | not defined                              | https://stopsopa.github.io/xx/init.json | >https://stopsopa.github.io/xx/init.json<
 XX_CONFIRM      | not defined                              | true                                    | true (ask, unless the command has confirm: false)
@@ -327,7 +327,7 @@ XX_TMP          | not defined                              | ${TMPDIR}, then /tm
 XX_RELEASES     | not defined                              | https://github.com/stopsopa/xx/releases | >https://github.com/stopsopa/xx/releases<
 ```
 
-`not defined` and `><` (defined, empty) are different things, it matters for `XX_NODE_OPTIONS`. When `XX_NODE_BINARY` is wrong the reason is printed under the table. When `XX_BIN` is wrong the table can't be printed (it comes from the binary): `xx.sh` says what is wrong with `XX_BIN` and prints just the raw values.
+`not defined` and `><` (defined, empty) are shown differently, but they mean the same: the default is used. When `XX_NODE_BINARY` is wrong the reason is printed under the table. When `XX_BIN` is wrong the table can't be printed (it comes from the binary): `xx.sh` says what is wrong with `XX_BIN` and prints just the raw values.
 
 ### `XX_BIN`
 
@@ -357,14 +357,15 @@ Any version of node which can run your config is fine; `xx.ts` needs 22.18+.
 
 `NODE_OPTIONS` is the native variable of node with extra command line options.
 
-- **not defined** (default): `xx` does nothing, node gets `NODE_OPTIONS` exactly as it is in your shell.
-- **defined**: node started by `xx` gets `NODE_OPTIONS` set to this value. Defined as empty string it clears `NODE_OPTIONS`.
+- **not defined or empty** (default): `xx` does nothing, node gets `NODE_OPTIONS` exactly as it is in your shell.
+- **not empty**: node started by `xx` gets `NODE_OPTIONS` set to this value.
+- **a single space** (`" "`): the way to give node empty `NODE_OPTIONS`, hiding the one from your shell.
 
 It affects only node which loads the config, not the script of the command (the script sees `NODE_OPTIONS` of your shell).
 
 ```sh
 # NODE_OPTIONS="--inspect" in the shell prints "Debugger listening..." on every xx. Switch it off only for xx:
-export XX_NODE_OPTIONS=""
+export XX_NODE_OPTIONS=" "
 ```
 
 ### `XX_INIT_CONFIG`

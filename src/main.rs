@@ -105,8 +105,9 @@ Config format:
 Environment variables:
   XX_NODE_BINARY      required: absolute path to node binary, checked on every run
                       (in all paths below \"~/\" at the beginning means home directory)
-  XX_NODE_OPTIONS     when defined, NODE_OPTIONS of node started by xx is set to this value
-                      (not defined: NODE_OPTIONS is passed as it is)
+  XX_NODE_OPTIONS     when not empty, NODE_OPTIONS of node started by xx is set to this value
+                      (not defined or empty: NODE_OPTIONS is passed as it is,
+                      a single space \" \" gives node empty NODE_OPTIONS)
   XX_BIN              required by xx.sh: absolute path to this binary, xx.sh accepts only
                       the binary it was built with (md5 of the file is checked)
   XX_INIT_CONFIG      used by --init and --esm: url or path of json with locations of templates
@@ -217,9 +218,12 @@ fn env() {
             raw(node::ENV_OPTIONS),
             "${NODE_OPTIONS}".to_string(),
             // what node started by xx really gets as NODE_OPTIONS, and where it comes from
-            match std::env::var(node::ENV_OPTIONS) {
-                Ok(v) => format!(">{v}< (XX_NODE_OPTIONS is defined, ${{NODE_OPTIONS}} is ignored)"),
-                Err(_) => format!("{} (taken from ${{NODE_OPTIONS}})", raw("NODE_OPTIONS")),
+            match node::options() {
+                Some(v) => format!(
+                    ">{}< (${{NODE_OPTIONS}} is ignored)",
+                    v.to_string_lossy()
+                ),
+                None => format!("{} (taken from ${{NODE_OPTIONS}})", raw("NODE_OPTIONS")),
             },
         ],
         [

@@ -11,4 +11,4 @@ Test 022 verifies env vars controlling node.
 
 `--help` and `--version` work without it.
 
-`XX_NODE_OPTIONS`: when not defined `NODE_OPTIONS` from the environment reaches node untouched. When defined (also as empty string) node started by `xx` gets its value as `NODE_OPTIONS`. Broken options are reported by the same check.
+`XX_NODE_OPTIONS`: when not defined or empty `NODE_OPTIONS` from the environment reaches node untouched. When not empty node started by `xx` gets its value as `NODE_OPTIONS` (a single space is the way to clear it). Broken options are reported by the same check.

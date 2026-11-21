@@ -115,7 +115,7 @@ The loader (`src/loader.js`, compiled in with `include_str!`, run as `node -e <l
 4. `process.stdout.write` is redirected to stderr first, so `console.log` in a config cannot corrupt the JSON. Rust takes the text between the last pair of markers.
 5. One node warning is silenced (`MODULE_TYPELESS_PACKAGE_JSON`): it would print four lines on every run for an ESM `xx.js` / `xx.ts` in a project whose `package.json` has no `"type"`.
 
-Node itself (`src/node.rs`): `XX_NODE_BINARY` is required, no fallback to `PATH` (version-manager shims are slow and depend on the directory). Every run checks that the file exists and that `--version` prints `vX.Y.Z`. `XX_NODE_OPTIONS`, when defined (also empty), replaces `NODE_OPTIONS` for node started by xx; otherwise `NODE_OPTIONS` passes through untouched.
+Node itself (`src/node.rs`): `XX_NODE_BINARY` is required, no fallback to `PATH` (version-manager shims are slow and depend on the directory). Every run checks that the file exists and that `--version` prints `vX.Y.Z`. `XX_NODE_OPTIONS`, when not empty, replaces `NODE_OPTIONS` for node started by xx; not defined or empty means `NODE_OPTIONS` passes through untouched (empty = default, like in every other `XX_*` variable; a single space is the way to force empty `NODE_OPTIONS`).
 
 Rules applied in Rust (`src/model.rs`):
 

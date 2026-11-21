@@ -70,7 +70,11 @@ assert_eq "${OUT}" 'echo "NODE_OPTIONS=--no-deprecation"' "XX_NODE_OPTIONS repla
 
 # also when it is defined as empty: that is the way to clear NODE_OPTIONS only for xx
 OUT="$(cat "$(NODE_OPTIONS="--no-warnings" XX_NODE_OPTIONS="" "${BIN}" opts)")"
-assert_eq "${OUT}" 'echo "NODE_OPTIONS="' "empty XX_NODE_OPTIONS clears NODE_OPTIONS"
+assert_eq "${OUT}" 'echo "NODE_OPTIONS=--no-warnings"' "empty XX_NODE_OPTIONS means not defined"
+
+# a single space: the way to give node empty NODE_OPTIONS
+OUT="$(cat "$(NODE_OPTIONS="--no-warnings" XX_NODE_OPTIONS=" " "${BIN}" opts)")"
+assert_eq "${OUT}" 'echo "NODE_OPTIONS= "' "XX_NODE_OPTIONS with a space clears NODE_OPTIONS"
 
 # broken options are reported by the check, with both values shown
 OUT="$(XX_NODE_OPTIONS="--no-such-option-xx" "${BIN}" opts 2>&1)"

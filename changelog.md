@@ -5,6 +5,7 @@ Each release has its own `## vX.Y.Z` section. The release workflow copies the se
 ## v0.2.0
 
 - **`xx --update [tag|--check]`**: new. Replaces `xx.sh` and the binary with the latest (or given) release. Both files are downloaded, verified against `SHA256SUMS.txt` and tested together before anything is replaced; if the installed pair doesn't work afterwards the previous files are put back. `XX_RELEASES` (URL or local directory) replaces the place releases are taken from.
+- **`XX_NODE_OPTIONS`**: empty value now means the same as not defined (`NODE_OPTIONS` of the shell is passed to node), before it cleared `NODE_OPTIONS`. To clear it use a single space: `XX_NODE_OPTIONS=" "`.
 - **`xx --env`**: prints a table now: name, value, default and the final value `xx` really uses (after defaults and expanding `~/`).
 
 ## v1.0.0

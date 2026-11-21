@@ -37,15 +37,23 @@ impl Node {
 /**
  * Every node process started by xx is created here.
  *
- *   XX_NODE_OPTIONS defined (also empty) -> NODE_OPTIONS of the node process is set to its value
- *   XX_NODE_OPTIONS not defined          -> NODE_OPTIONS is left as it is in the environment
+ *   XX_NODE_OPTIONS not empty             -> NODE_OPTIONS of the node process is set to its value
+ *   XX_NODE_OPTIONS not defined or empty  -> NODE_OPTIONS is left as it is in the environment
+ *
+ * Empty means "not defined", like in the rest of XX_* variables. To give node empty NODE_OPTIONS
+ * (to hide the one from the shell) use a value with just a space: XX_NODE_OPTIONS=" "
  */
 pub fn command(path: &str) -> Command {
     let mut cmd = Command::new(path);
-    if let Some(options) = std::env::var_os(ENV_OPTIONS) {
+    if let Some(options) = options() {
         cmd.env("NODE_OPTIONS", options);
     }
     cmd
+}
+
+// value of XX_NODE_OPTIONS when it is in use (defined and not empty)
+pub fn options() -> Option<std::ffi::OsString> {
+    std::env::var_os(ENV_OPTIONS).filter(|o| !o.is_empty())
 }
 
 fn looks_like_version(text: &str) -> bool {
@@ -109,7 +117,7 @@ pub fn resolve(home: Option<&Path>) -> Result<Node, String> {
   stdout:    >{stdout}<
   stderr:    >{stderr}<
   NODE_OPTIONS:    {node_options}
-  {ENV_OPTIONS}: {xx_node_options} (when defined it replaces NODE_OPTIONS for node started by xx)
+  {ENV_OPTIONS}: {xx_node_options} (when not empty it replaces NODE_OPTIONS for node started by xx)
 {HOW_TO_SET}",
             output
                 .status
