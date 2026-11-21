@@ -216,13 +216,11 @@ fn env() {
             node::ENV_OPTIONS.to_string(),
             raw(node::ENV_OPTIONS),
             "${NODE_OPTIONS}".to_string(),
-            format!(
-                "NODE_OPTIONS of node: {}",
-                match std::env::var(node::ENV_OPTIONS) {
-                    Ok(v) => format!(">{v}<"),
-                    Err(_) => raw("NODE_OPTIONS"),
-                }
-            ),
+            // what node started by xx really gets as NODE_OPTIONS, and where it comes from
+            match std::env::var(node::ENV_OPTIONS) {
+                Ok(v) => format!(">{v}< (XX_NODE_OPTIONS is defined, ${{NODE_OPTIONS}} is ignored)"),
+                Err(_) => format!("{} (taken from ${{NODE_OPTIONS}})", raw("NODE_OPTIONS")),
+            },
         ],
         [
             "XX_BIN".to_string(),

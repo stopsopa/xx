@@ -20,13 +20,13 @@ for SHELL_BIN in /bin/bash zsh; do
   # everything defined
   OUT="$(
     XX_NODE_BINARY="~/node" XX_NODE_OPTIONS="" NODE_OPTIONS="--no-warnings" XX_BIN="~/.xx/xx-bin" \
-      XX_INIT_CONFIG="~/init.json" XX_CONFIRM="false" XX_TMP="~/my tmp" \
+      XX_INIT_CONFIG="~/init.json" XX_CONFIRM="false" XX_TMP="~/my tmp" TMPDIR="/from/tmpdir" \
       "${SHELL_BIN}" -c "source \"${XXSH}\" --env; echo \"code=\${?}\"" 2>&1
   )"
   assert_contains "${OUT}" "code=0" "${SHELL_BIN}: exit code, everything defined"
   assert_eq "$(row "${OUT}" name)" "name | value | default | final (used by xx right now)" "${SHELL_BIN}: header"
   assert_eq "$(row "${OUT}" XX_NODE_BINARY)" "XX_NODE_BINARY | >~/node< | none, required | >${HOME}/node< (node ${NODE_VERSION})" "${SHELL_BIN}: XX_NODE_BINARY"
-  assert_eq "$(row "${OUT}" XX_NODE_OPTIONS)" 'XX_NODE_OPTIONS | >< | ${NODE_OPTIONS} | NODE_OPTIONS of node: ><' "${SHELL_BIN}: XX_NODE_OPTIONS empty replaces NODE_OPTIONS"
+  assert_eq "$(row "${OUT}" XX_NODE_OPTIONS)" 'XX_NODE_OPTIONS | >< | ${NODE_OPTIONS} | >< (XX_NODE_OPTIONS is defined, ${NODE_OPTIONS} is ignored)' "${SHELL_BIN}: XX_NODE_OPTIONS empty replaces NODE_OPTIONS"
   assert_eq "$(row "${OUT}" XX_BIN)" "XX_BIN | >~/.xx/xx-bin< | none, required | >${HOME}/.xx/xx-bin<" "${SHELL_BIN}: XX_BIN"
   assert_eq "$(row "${OUT}" XX_INIT_CONFIG)" "XX_INIT_CONFIG | >~/init.json< | https://stopsopa.github.io/xx/init.json | >${HOME}/init.json<" "${SHELL_BIN}: XX_INIT_CONFIG"
   assert_eq "$(row "${OUT}" XX_CONFIRM)" 'XX_CONFIRM | >false< | true | false (never ask "Run command?")' "${SHELL_BIN}: XX_CONFIRM"
@@ -38,7 +38,7 @@ for SHELL_BIN in /bin/bash zsh; do
       "${SHELL_BIN}" -c "unset XX_NODE_OPTIONS XX_INIT_CONFIG XX_CONFIRM XX_TMP; set -u; source \"${XXSH}\" --env; echo \"code=\${?}\"" 2>&1
   )"
   assert_contains "${OUT}" "code=0" "${SHELL_BIN}: exit code, defaults"
-  assert_eq "$(row "${OUT}" XX_NODE_OPTIONS)" 'XX_NODE_OPTIONS | not defined | ${NODE_OPTIONS} | NODE_OPTIONS of node: >--no-warnings<' "${SHELL_BIN}: XX_NODE_OPTIONS not defined"
+  assert_eq "$(row "${OUT}" XX_NODE_OPTIONS)" 'XX_NODE_OPTIONS | not defined | ${NODE_OPTIONS} | >--no-warnings< (taken from ${NODE_OPTIONS})' "${SHELL_BIN}: XX_NODE_OPTIONS not defined"
   assert_eq "$(row "${OUT}" XX_INIT_CONFIG)" "XX_INIT_CONFIG | not defined | https://stopsopa.github.io/xx/init.json | >https://stopsopa.github.io/xx/init.json<" "${SHELL_BIN}: XX_INIT_CONFIG default"
   assert_eq "$(row "${OUT}" XX_CONFIRM)" 'XX_CONFIRM | not defined | true | true (ask, unless the command has confirm: false)' "${SHELL_BIN}: XX_CONFIRM default"
   assert_eq "$(row "${OUT}" XX_TMP)" "XX_TMP | not defined | \${TMPDIR}, then /tmp | >/from/tmpdir< (scripts in >/from/tmpdir/xx-${UID_NOW}<)" "${SHELL_BIN}: XX_TMP default"

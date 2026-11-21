@@ -319,7 +319,7 @@ In every variable holding a path, `~/` at the beginning means your home director
 $ xx --env
 name            | value                                    | default                                 | final (used by xx right now)
 XX_NODE_BINARY  | >~/.nvm/versions/node/v24.22.1/bin/node< | none, required                          | >/home/me/.nvm/versions/node/v24.22.1/bin/node< (node v24.22.1)
-XX_NODE_OPTIONS | ><                                       | ${NODE_OPTIONS}                         | NODE_OPTIONS of node: ><
+XX_NODE_OPTIONS | ><                                       | ${NODE_OPTIONS}                         | >< (XX_NODE_OPTIONS is defined, ${NODE_OPTIONS} is ignored)
 XX_BIN          | >~/.xx/xx-bin<                           | none, required                          | >/home/me/.xx/xx-bin<
 XX_INIT_CONFIG  | not defined                              | https://stopsopa.github.io/xx/init.json | >https://stopsopa.github.io/xx/init.json<
 XX_CONFIRM      | not defined                              | true                                    | true (ask, unless the command has confirm: false)
