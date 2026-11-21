@@ -65,7 +65,7 @@ Two files are needed, both from this release (they refuse to work together if th
 - the wrapper \`xx.sh\`
 
 Pick the block for your platform. It creates a new temporary directory, downloads both files there and verifies checksums of both. Stay in that directory (the same terminal) for the next step.
-Then go back to [README.md → Installation → step 2](https://github.com/${REPO}#2-install) to copy them to their place and set up the shell.
+Then go back to [README.md → Installation → step 2](https://github.com/${REPO}#2-install) to move them to their place and set up the shell.
 
 EEE
 

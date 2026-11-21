@@ -66,6 +66,7 @@ export default () => ({
 - [Arguments and stdin](#arguments-and-stdin)
 - [`source: true`](#source-true)
 - [Exit codes](#exit-codes)
+- [Skill for AI agents](#skill-for-ai-agents)
 - [Development](#development)
 
 ## Installation
@@ -85,7 +86,7 @@ In the directory with the two downloaded files:
 
 ```sh
 mkdir -p ~/.xx
-cp xx-bin xx.sh ~/.xx/
+mv xx-bin xx.sh ~/.xx/
 chmod 755 ~/.xx/xx-bin
 chmod 644 ~/.xx/xx.sh
 ```
@@ -429,6 +430,24 @@ The script is sourced in your current shell, so `cd`, `export`, `source venv/bin
 ## Exit codes
 
 `xx` returns exit code of the executed script. Besides that: `130` cancelled, `10` "Run command?" answered with no, `1` error (config not found, broken config, unknown command, `XX_BIN` or `XX_NODE_BINARY` not passing the check).
+
+## Skill for AI agents
+
+The repository carries a skill ([xx/SKILL.md](xx/SKILL.md)) which teaches an AI agent what `xx.*` files are, how to list commands, how to see what a command really executes (`--gen`), how to run one without a terminal and how to write new ones.
+
+```sh
+npm install -g skills
+npx skills add stopsopa/xx
+
+# into the current project, for Claude Code
+npx skills add stopsopa/xx --skill xx -a claude-code -y
+
+# globally (available in every project)
+npx skills add stopsopa/xx --skill xx -a claude-code -g -y
+
+# only show what the repository offers, install nothing
+npx skills add stopsopa/xx --list
+```
 
 ## Development
 
