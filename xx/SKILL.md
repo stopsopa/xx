@@ -93,6 +93,32 @@ The trap when writing commands: `command` is a JS template literal which becomes
 - Shared pieces of script go to constants at the top of the file and are interpolated with `${...}`.
 - Keep the existing style and module format of the file (`.cjs` is CommonJS, `.mjs` ES module, `.ts`/`.js` follow the project).
 
+## Installing a config in a project ("add xx to this project")
+
+Never write the file from scratch, bring the template:
+
+```sh
+"$XX" --init            # .git/xx.ts if .git exists (private, not committed), else ./xx.ts
+"$XX" --esm ./xx.ts     # ./xx.ts - committed, shared with the team
+"$XX" --init cjs        # the same template as xx.cjs, when node is older than 22.18
+```
+
+It refuses to overwrite an existing file.
+
+Before creating it ask the user where the config should live, unless they already said:
+
+- **in the repository** (`./xx.ts`): committed, the whole team gets the same menu.
+- **only for them** (`.git/xx.ts`): never committed, invisible to others. This is where `--init` puts it by default.
+
+Changing the mind later is just moving the file one directory up or down (`mv .git/xx.ts xx.ts`), nothing else refers to its location. Only one of them may exist: the one in `.git/` hides the one in `./`.
+
+The template is a showcase of examples, not a config to keep. After downloading it:
+
+1. Remove every command except `help`. Keep the top of the file (comments, color constants, the `enter` / `esc` snippets, types): commands you add may use them.
+2. Rewrite `help`: it is the "what is this project" card. Keep the line which prints the link to the repository, delete the example content (admin urls, dev notes) and put there what is true for this project: link to the repository (usually GitHub; the line in the template derives it from `git ls-remote --get-url origin`, check that it prints a working link for this remote), docs, local urls, anything worth having at hand.
+3. Add the commands the user asked for (see "Structure of a good config").
+4. Verify as described below.
+
 ## After editing the config
 
 ```sh
@@ -104,6 +130,5 @@ Errors of the config (syntax, wrong shape) are printed by `--list` with the path
 
 ## Other
 
-- `"$XX" --init [ts|js|mjs|cjs]` creates a config from the template (to `.git/` if it exists, else `./`).
 - `"$XX" --env` shows all `XX_*` env vars with final values, `"$XX" --help` everything else.
 - Setup problems (`XX_NODE_BINARY`, md5 mismatch between `xx.sh` and the binary) and `xx --update` are for the user to handle in their own terminal.
