@@ -81,6 +81,14 @@ set -e
       description: `build binary to bin/<arch>/xx`,
       confirm: false,
     },
+    [`transpile`]: {
+      command: `
+set -e
+/bin/bash transpile.sh
+`,
+      description: `generate templates/xx.js, xx.mjs, xx.cjs from templates/xx.ts`,
+      confirm: false,
+    },
     [`test`]: {
       command: `
 set -e
