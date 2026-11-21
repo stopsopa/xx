@@ -135,7 +135,8 @@ assert_contains "${OUT}" "xx updated: v9.9.8 -> v9.9.9" "update"
 assert_contains "${OUT}" "test ok: installed xx.sh works with installed binary" "update: pair tested after replacing"
 assert_contains "${OUT}" "code=0" "update: exit code"
 installed v9.9.9 "after update"
-assert_eq "$(stat -f '%Lp' "${HOME}/.xx/xx.sh" 2> /dev/null || stat -c '%a' "${HOME}/.xx/xx.sh")" "600" "xx.sh keeps its permissions"
+# GNU stat first: on Linux "stat -f" means "filesystem" and prints something else
+assert_eq "$(stat -c '%a' "${HOME}/.xx/xx.sh" 2> /dev/null || stat -f '%Lp' "${HOME}/.xx/xx.sh")" "600" "xx.sh keeps its permissions"
 
 echo "  xx --update   (v9.9.8 installed, v9.9.9 is the latest), what the user sees:"
 echo "${OUT}" | sed "s|${WORK}|<tmp>|g; s|^|    |"
