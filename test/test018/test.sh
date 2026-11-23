@@ -50,6 +50,8 @@ check() {
   assert_contains "${OUT}" "picked-second" "${LABEL}: arrow down and Enter in real terminal"
   assert_contains "${OUT}" "CODE=130" "${LABEL}: Ctrl+C in the menu returns 130"
   assert_contains "${OUT}" "ALIVE2" "${LABEL}: shell is alive after Ctrl+C in the menu"
+  assert_contains "${OUT}" "ESCCODE=130" "${LABEL}: lone Esc in the menu returns 130"
+  assert_contains "${OUT}" "ESCFILTER=130" "${LABEL}: Esc with a filter typed in returns 130"
   assert_contains "${OUT##*navigate}" $'\033[?25h' "${LABEL}: cursor restored after the menu"
 }
 

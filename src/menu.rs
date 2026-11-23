@@ -102,14 +102,27 @@ impl Tty {
     }
 
     // is there another byte waiting? used to tell lone Esc from escape sequence
+    // select() and not poll(): on macOS poll() doesn't support /dev/tty, it returns at once with
+    // POLLNVAL, every Esc looked like the start of a sequence and the menu waited for more bytes
     fn pending(&self, ms: i32) -> bool {
-        let mut fds = libc::pollfd {
-            fd: self.file.as_raw_fd(),
-            events: libc::POLLIN,
-            revents: 0,
-        };
-        // SAFETY: one valid pollfd struct
-        unsafe { libc::poll(&mut fds, 1, ms) > 0 }
+        let fd = self.file.as_raw_fd();
+        // SAFETY: fd_set is zeroed and filled by FD_ZERO / FD_SET, fd is open and below FD_SETSIZE
+        unsafe {
+            let mut set: libc::fd_set = std::mem::zeroed();
+            libc::FD_ZERO(&mut set);
+            libc::FD_SET(fd, &mut set);
+            let mut timeout = libc::timeval {
+                tv_sec: (ms / 1000) as libc::time_t,
+                tv_usec: ((ms % 1000) * 1000) as libc::suseconds_t,
+            };
+            libc::select(
+                fd + 1,
+                &mut set,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &mut timeout,
+            ) > 0
+        }
     }
 }
 

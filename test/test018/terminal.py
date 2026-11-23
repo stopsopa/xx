@@ -121,6 +121,26 @@ send('echo "ALI""VE2"\n')
 wait_for("ALIVE2", 5)
 wait_for(PROMPT, 5)
 
+# 4. lone Esc in the menu (no other byte follows it, unlike in the arrow keys)
+send('source "%s"\n' % xxsh)
+wait_for("navigate")
+send(b"\x1b")
+wait_for(PROMPT, 5)
+send('echo "ESC""CODE=$?"\n')
+wait_for("ESCCODE=", 5)
+wait_for(PROMPT, 5)
+
+# 5. Esc with a filter typed in
+send('source "%s"\n' % xxsh)
+wait_for("navigate")
+send("sec")
+read(0.1)
+send(b"\x1b")
+wait_for(PROMPT, 5)
+send('echo "ESC""FILTER=$?"\n')
+wait_for("ESCFILTER=", 5)
+wait_for(PROMPT, 5)
+
 send("exit\n")
 read(0.1)
 
