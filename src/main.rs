@@ -337,11 +337,17 @@ fn write_generated(path: &Path, content: &str) -> Result<(), String> {
     use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 
     if let Some(dir) = path.parent() {
-        if !dir.exists() {
-            fs::DirBuilder::new()
-                .mode(0o700)
-                .create(dir)
-                .map_err(|e| format!("can't create directory >{}<: {e}", dir.display()))?;
+        // no "exists?" check before: two xx starting at the same time (two terminals) would both
+        // see no directory and the slower one would fail. Whatever is there is verified below.
+        match fs::DirBuilder::new().mode(0o700).create(dir) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => {
+                return Err(format!(
+                    "can't create directory >{}<: {e}",
+                    dir.display()
+                ))
+            }
         }
 
         let is_private_tmp = dir
