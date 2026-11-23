@@ -19,7 +19,7 @@ const HIDE_CURSOR: &str = "\x1b[?25l";
 const SHOW_CURSOR: &str = "\x1b[?25h";
 
 const MESSAGE: &str = "Select command to run";
-const HELP: &str = "↑↓ navigate • ⏎ select • type to filter";
+const HELP: &str = "↑↓ navigate • ⏎ select • type to filter • esc exit";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Key {
@@ -476,11 +476,7 @@ pub fn select(term: &mut dyn Term, list: &[Command]) -> Option<usize> {
                     return Some(i);
                 }
             }
-            // first Esc clears the filter, second one cancels
-            Key::Esc if !state.filter.is_empty() => {
-                state.filter.clear();
-                state.apply_filter();
-            }
+            // Esc always cancels, also with a filter typed in (Backspace edits the filter)
             Key::Esc | Key::CtrlC | Key::Eof => {
                 draw(term, previous, &[]);
                 return None;

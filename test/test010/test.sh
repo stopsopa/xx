@@ -24,7 +24,9 @@ assert_eq "$(pick "dock,enter")" 'echo docker ${1}' "typing filters by name"
 assert_eq "$(pick "THR,enter")" 'echo three ${1}' "filter is case insensitive"
 assert_eq "$(pick "3,enter")" 'echo three ${1}' "typing number finds row with that number"
 assert_eq "$(pick "x,backspace,down,enter")" 'echo two ${1}' "backspace removes filter"
-assert_eq "$(pick "zzz,esc,enter")" 'echo one ${1}' "first esc clears the filter"
+
+XX_TEST_KEYS="zzz,esc,enter" "${BIN}" > /dev/null 2>&1
+assert_eq "${?}" "130" "esc cancels also when a filter is typed in"
 
 XX_TEST_KEYS="zzz,enter,enter" "${BIN}" > /dev/null 2>&1
 assert_eq "${?}" "130" "enter does nothing when filter matches no row"

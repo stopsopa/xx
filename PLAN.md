@@ -127,7 +127,7 @@ Rules applied in Rust (`src/model.rs`):
 ## 6. Menu
 
 - Prompt `Select command to run`, rows `█   1 - name` (block indicator ported from `lib/range.js`), **selected row in reverse video**, description of the selected row under the list, help line, and after choosing a single `✔` line. Redrawn in place, no alternate screen, so scrollback stays intact.
-- Keys: `↑` `↓` (wrap around), `Home` `End` `PgUp` `PgDn`, `Enter`. Typing filters rows: case-insensitive "contains" against `<number> - <name>`, so `12` finds row 12 too. `Backspace` edits the filter, first `Esc` clears it, second `Esc` or `Ctrl+C` cancels (130). `j` / `k` do not navigate, because typing filters.
+- Keys: `↑` `↓` (wrap around), `Home` `End` `PgUp` `PgDn`, `Enter`. Typing filters rows: case-insensitive "contains" against `<number> - <name>`, so `12` finds row 12 too. `Backspace` edits the filter, `Esc` or `Ctrl+C` cancels (130) at any moment, also with a filter typed in. `j` / `k` do not navigate, because typing filters.
 - "Run command?": `Enter` / `y` = yes, `n` / `Esc` = no (exit 10, the script is still written), `Ctrl+C` = cancel (130).
 - Without a terminal the menu and the confirmation fail with an explanation instead of hanging (name the command, or `XX_CONFIRM=false`).
 - Key input goes through one trait with two implementations: the real `/dev/tty`, and a scripted one driven by `XX_TEST_KEYS="down,down,enter"` (`XX_TEST_SIZE="60x20"`), which draws to stderr. That makes the menu testable from plain bash.

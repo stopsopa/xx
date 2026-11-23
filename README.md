@@ -211,7 +211,7 @@ xx --help
 xx --version
 ```
 
-In the menu: `↑` `↓` move (wraps around), `Home` `End` `PgUp` `PgDn`, `Enter` runs, typing filters rows by name or number, `Backspace` edits the filter, `Esc` clears the filter and second `Esc` (or `Ctrl+C`) cancels.
+In the menu: `↑` `↓` move (wraps around), `Home` `End` `PgUp` `PgDn`, `Enter` runs, typing filters rows by name or number, `Backspace` edits the filter, `Esc` (or `Ctrl+C`) exits the menu and returns to the terminal.
 
 ## Config
 
