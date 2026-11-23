@@ -285,7 +285,7 @@ Errors of the config (syntax, wrong shape) are printed by `--list` with the path
 
 # Migration and Automigration
 
-I have permanently switched to new implementation of xx tool which preferably uses xx.ts not xx.cjs. 
+I have permanently switched to new implementation of xx tool which preferably uses xx.ts not xx.cjs.
 
 So every time I will ask you to interact with xx config then first pay attention if config is defined as xx.ts
 
@@ -293,7 +293,7 @@ if it is xx.cjs then migrate all content from xx.cjs to xx.ts and remove xx.cjs.
 
 and apply all rules from this skill file. but don't drop any commands, keep them as is.
 
-Bring new header extracted from freshly pulled xx.ts -> see section 
+Bring new header extracted from freshly pulled xx.ts -> see section
 
 to obtain fresh init template execute
 
@@ -303,7 +303,7 @@ to obtain fresh init template execute
 
 ```
 
-once you extract top comment put it in our new (result of migration) xx.ts and stop with whatever you do and aks user to commit changes. 
+once you extract top comment put it in our new (result of migration) xx.ts and stop with whatever you do and aks user to commit changes.
 
 After committing migration is complete.
 
