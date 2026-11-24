@@ -29,7 +29,6 @@ export default () => ({
   activate: {
     command: `source venv/bin/activate`,
     source: true, // runs in your current shell, so the virtualenv stays active
-    confirm: false,
   },
 });
 ```
@@ -39,7 +38,7 @@ export default () => ({
 - **The config is real code.** TypeScript or JavaScript, executed by node: build the scripts from env vars, shared snippets, loops, imports. No YAML, no template language.
 - **Commands can change your current shell.** With `source: true` a command is sourced instead of executed, so `cd`, `export` or `source venv/bin/activate` still apply after it ends. Ctrl+C in such a command does not close your terminal.
 - **Behaves like a normal command.** Arguments and stdin reach the script (`xx build --fast`, `cat dump.sql | xx "db import"`), its exit code comes back.
-- **Asks before running**, unless the command says `confirm: false`.
+- **Asks before running** when the command says `confirm: true`: for the ones you don't want to fire by accident.
 - **Private or shared, your choice.** Put the config in `.git/xx.ts` to keep it only for yourself, or in `./xx.ts` to commit it for the team.
 - **Fast and dependency free.** A small Rust binary draws the menu. Nothing to `npm install`, no bundle.
 
@@ -273,8 +272,8 @@ echo "first argument: \${1}"
 `,
       // optional: shown under the menu for selected row. Default: name of the command
       description: `start containers of <% name %>`,
-      // optional: default is true = ask "Run command?" before running
-      confirm: false,
+      // optional: default is false = run straight away. true = ask "Run command?" before running
+      confirm: true,
       // optional: default is false. true = run in the current shell (source) instead of /bin/bash
       source: false,
       // optional: lower goes first. Missing means 0, so negative = top, positive = bottom
@@ -282,7 +281,6 @@ echo "first argument: \${1}"
     },
     activate: {
       command: `source venv/bin/activate`,
-      confirm: false,
       source: true,
     },
     ...setup,
@@ -322,7 +320,7 @@ XX_NODE_BINARY  | >~/.nvm/versions/node/v24.22.1/bin/node< | none, required     
 XX_NODE_OPTIONS | ><                                       | ${NODE_OPTIONS}                         | >--inspect< (taken from ${NODE_OPTIONS})
 XX_BIN          | >~/.xx/xx-bin<                           | none, required                          | >/home/me/.xx/xx-bin<
 XX_INIT_CONFIG  | not defined                              | https://stopsopa.github.io/xx/init.json | >https://stopsopa.github.io/xx/init.json<
-XX_CONFIRM      | not defined                              | true                                    | true (ask, unless the command has confirm: false)
+XX_CONFIRM      | not defined                              | true                                    | true (ask when the command has confirm: true)
 XX_TMP          | not defined                              | ${TMPDIR}, then /tmp                    | >/tmp< (scripts in >/tmp/xx-1000<)
 XX_RELEASES     | not defined                              | https://github.com/stopsopa/xx/releases | >https://github.com/stopsopa/xx/releases<
 ```
@@ -388,7 +386,7 @@ Used by `xx --init` and `xx --esm`. URL (`http://`, `https://`) or path (also st
 
 ### `XX_CONFIRM`
 
-`XX_CONFIRM=false xx <name>` runs the command without the "Run command?" question, also when the command says `confirm: true`. Any other value changes nothing. (The old implementation called it `XXCONFIRM`, that name is not read anymore.)
+`XX_CONFIRM=false xx <name>` runs the command without the "Run command?" question, which is asked only by commands with `confirm: true` (the default of `confirm` is `false`). Any other value changes nothing. (The old implementation called it `XXCONFIRM`, that name is not read anymore.)
 
 ### `XX_TMP`
 

@@ -40,7 +40,7 @@ for SHELL_BIN in /bin/bash zsh; do
   assert_contains "${OUT}" "code=0" "${SHELL_BIN}: exit code, defaults"
   assert_eq "$(row "${OUT}" XX_NODE_OPTIONS)" 'XX_NODE_OPTIONS | not defined | ${NODE_OPTIONS} | >--no-warnings< (taken from ${NODE_OPTIONS})' "${SHELL_BIN}: XX_NODE_OPTIONS not defined"
   assert_eq "$(row "${OUT}" XX_INIT_CONFIG)" "XX_INIT_CONFIG | not defined | https://stopsopa.github.io/xx/init.json | >https://stopsopa.github.io/xx/init.json<" "${SHELL_BIN}: XX_INIT_CONFIG default"
-  assert_eq "$(row "${OUT}" XX_CONFIRM)" 'XX_CONFIRM | not defined | true | true (ask, unless the command has confirm: false)' "${SHELL_BIN}: XX_CONFIRM default"
+  assert_eq "$(row "${OUT}" XX_CONFIRM)" 'XX_CONFIRM | not defined | true | true (ask when the command has confirm: true)' "${SHELL_BIN}: XX_CONFIRM default"
   assert_eq "$(row "${OUT}" XX_TMP)" "XX_TMP | not defined | \${TMPDIR}, then /tmp | >/from/tmpdir< (scripts in >/from/tmpdir/xx-${UID_NOW}<)" "${SHELL_BIN}: XX_TMP default"
 
   OUT="$(XX_BIN="${BIN}" NODE_OPTIONS="--no-warnings" XX_NODE_OPTIONS="--no-deprecation" "${SHELL_BIN}" -c "source \"${XXSH}\" --env" 2>&1)"

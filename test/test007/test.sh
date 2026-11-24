@@ -6,9 +6,9 @@ GEN="${WORK}/project/.git/xx_generated.sh"
 
 cat <<'EEE' > xx.cjs
 module.exports = () => ({
-  ask: { command: `echo ask` },
-  asktrue: { command: `echo asktrue`, confirm: true },
+  ask: { command: `echo ask`, confirm: true },
   noask: { command: `echo noask`, confirm: false },
+  default: { command: `echo default` },
 });
 EEE
 
@@ -20,7 +20,7 @@ assert_contains "$(cat "${WORK}/err")" "Run command?" "question is shown"
 XX_TEST_KEYS="y" "${BIN}" ask > /dev/null 2>&1
 assert_eq "${?}" "0" "exit code after answering y"
 
-XX_TEST_KEYS="enter" "${BIN}" asktrue > /dev/null 2>&1
+XX_TEST_KEYS="enter" "${BIN}" ask > /dev/null 2>&1
 assert_eq "${?}" "0" "exit code after Enter (default is yes)"
 
 XX_TEST_KEYS="ctrlc" "${BIN}" ask > /dev/null 2>&1
@@ -38,6 +38,10 @@ assert_contains "${ERR}" "Run command?" "question is asked with the old XXCONFIR
 ERR="$(XX_TEST_KEYS="n" "${BIN}" noask 2>&1 > /dev/null)"
 assert_eq "${?}" "0" "exit code with confirm: false"
 assert_not_contains "${ERR}" "Run command?" "no question with confirm: false"
+
+ERR="$(XX_TEST_KEYS="n" "${BIN}" default 2>&1 > /dev/null)"
+assert_eq "${?}" "0" "exit code without confirm (default is false)"
+assert_not_contains "${ERR}" "Run command?" "no question without confirm"
 
 # through the wrapper: not confirmed script is not executed
 OUT="$(XX_TEST_KEYS="n" /bin/bash -c "source \"${XXSH}\" ask; echo \"code=\${?}\"" 2>/dev/null)"

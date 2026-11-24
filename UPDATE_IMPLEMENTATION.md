@@ -25,12 +25,12 @@ Rules which must hold:
 
 `--update` only works if every release has the same shape. Set this up first.
 
-| File                     | Content                                                                                 |
-| ------------------------ | --------------------------------------------------------------------------------------- |
-| `<tool>-darwin-arm64`    | one **bare binary** per platform, not an archive (nothing to unpack, nothing to depend on) |
-| `<tool>-linux-x64`       |                                                                                         |
-| `<tool>-linux-arm64`     |                                                                                         |
-| `SHA256SUMS.txt`         | `shasum -a 256 <tool>-* > SHA256SUMS.txt`, lines `<sha256>  <file name>`                |
+| File                  | Content                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------ |
+| `<tool>-darwin-arm64` | one **bare binary** per platform, not an archive (nothing to unpack, nothing to depend on) |
+| `<tool>-linux-x64`    |                                                                                            |
+| `<tool>-linux-arm64`  |                                                                                            |
+| `SHA256SUMS.txt`      | `shasum -a 256 <tool>-* > SHA256SUMS.txt`, lines `<sha256>  <file name>`                   |
 
 - The names are a contract between the workflow and the binary (section 4). Add or remove platforms in both places.
 - The tag is the version, and the binary must know its own tag (section 3).
@@ -119,10 +119,10 @@ Env var `<TOOL>_RELEASES` replaces it (empty = default). It may be a URL or a **
 
 Layout, the same for both:
 
-| What               | URL                                                     | Local directory                         |
-| ------------------ | ------------------------------------------------------- | --------------------------------------- |
-| latest tag         | `<releases>/latest` **redirects** to `<releases>/tag/<tag>` | file `<releases>/latest` containing the tag |
-| a file of a release | `<releases>/download/<tag>/<file>`                     | the same path                           |
+| What                | URL                                                         | Local directory                             |
+| ------------------- | ----------------------------------------------------------- | ------------------------------------------- |
+| latest tag          | `<releases>/latest` **redirects** to `<releases>/tag/<tag>` | file `<releases>/latest` containing the tag |
+| a file of a release | `<releases>/download/<tag>/<file>`                          | the same path                               |
 
 Reading the latest tag from the redirect means no API, so no rate limit, no token and no JSON parsing. Do not follow the redirect, only read where it points:
 

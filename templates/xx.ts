@@ -35,15 +35,18 @@ IFS= read -r -n1 k 2>/dev/null||IFS= read -r k;stty "$old"
 [ "$k" = "$(printf '\\033')" ]&&exit 0;`;
 
 type Command = {
-  // shell script, written to xx_generated.sh and executed with /bin/bash
+  // required. Shell script, written to xx_generated.sh and executed with /bin/bash
   command: string;
-  // shown under the menu for selected row. Default: name of the command
+  // default: name of the command. Shown under the menu for the selected row
   description?: string;
-  // default true: ask "Run command?" before running
+  // default: false = run straight away
+  // true = ask "Run command?" first (XX_CONFIRM=false skips the question)
   confirm?: boolean;
-  // default false. true = run in the current shell (source) instead of /bin/bash
+  // default: false = executed with /bin/bash as a separate process
+  // true = sourced in the current shell (cd, export, source venv/bin/activate stay after it ends)
   source?: boolean;
-  // lower goes first. Missing means 0, so negative = top, positive = bottom
+  // default: 0. Lower goes first: negative = top, positive = bottom
+  // commands with the same order stay in the order of this file
   order?: number;
 };
 

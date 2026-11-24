@@ -1,1 +1,1 @@
-Test 007 verifies confirmation: when `confirm` is not defined (or true) user is asked. Answer "no" gives exit code 10 and the script is still written, "yes" or Enter gives 0. `XX_CONFIRM=false` skips the question. `confirm: false` never asks.
+Test 007 verifies confirmation: only `confirm: true` asks. Answer "no" gives exit code 10 and the script is still written, "yes" or Enter gives 0. `XX_CONFIRM=false` skips the question. `confirm: false` and `confirm` not defined never ask.

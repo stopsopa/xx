@@ -95,12 +95,33 @@ Config format:
   export default (setup, ctx) => ({{
     \"command name\": {{
       command: `echo shell script here`,
-      description: \"shown under the menu\",   // optional
-      confirm: false,                        // optional, default true: ask before running
-      source: true,                          // optional, default false: run in current shell
-      order: 10,                             // optional, lower goes first, missing = 0
+      description: \"shown under the menu\",
+      confirm: true,
+      source: true,
+      order: 10,
     }},
   }});
+
+  setup is always {{}} (\"...setup\" at the end of old configs still works),
+  ctx is {{ args, cwd, configPath }}. The function may be async.
+
+Fields of a command, only \"command\" is required:
+  command      string   required. Shell script, written to a file and executed with /bin/bash.
+                        Arguments of xx are its ${{1}}, ${{2}} ...
+  description  string   default: name of the command.
+                        Shown under the menu for the selected row
+  confirm      boolean  default: false = run straight away.
+                        true = ask \"Run command?\" first (Enter or y = yes, n or Esc = no).
+                        Only true asks, any other value means false.
+                        XX_CONFIRM=false skips the question also for confirm: true
+  source       boolean  default: false = executed with /bin/bash as a separate process.
+                        true = sourced in the current shell, so cd, export or
+                        \"source venv/bin/activate\" still apply after the command ends
+  order        number   default: 0. Lower goes first: negative = top, positive = bottom.
+                        Commands with the same order stay in the order of the file
+
+  <% name %> in command and description is replaced with the name of the command.
+  xx --list --json shows all of the above for every command, as xx understood it
 
 Environment variables:
   XX_NODE_BINARY      required: absolute path to node binary, checked on every run
@@ -113,7 +134,7 @@ Environment variables:
   XX_INIT_CONFIG      used by --init and --esm: url or path of json with locations of templates
                       {{\"ts\": \"url or path\", \"js\": \"...\", \"mjs\": \"...\", \"cjs\": \"...\"}}
                       default: {INIT_CONFIG}
-  XX_CONFIRM=false    skip all \"Run command?\" questions
+  XX_CONFIRM=false    skip all \"Run command?\" questions (asked by commands with confirm: true)
   XX_TMP              directory for generated scripts when there is no .git:
                       ${{XX_TMP}}/xx-<uid>/<hash of pwd>.sh
                       (not defined: ${{TMPDIR}} of the system, then /tmp)
@@ -245,7 +266,7 @@ fn env() {
             if std::env::var("XX_CONFIRM").as_deref() == Ok("false") {
                 "false (never ask \"Run command?\")".to_string()
             } else {
-                "true (ask, unless the command has confirm: false)".to_string()
+                "true (ask when the command has confirm: true)".to_string()
             },
         ],
         [
@@ -610,8 +631,8 @@ fn run(node: &node::Node, what: Option<&str>, args: &[String], gen_only: bool) -
         exit(EXIT_RUN);
     }
 
-    // confirm: false -> run straight away, anything else -> ask, unless XX_CONFIRM=false
-    let mut confirmed = command.confirm == Some(false);
+    // confirm: true -> ask, unless XX_CONFIRM=false. Anything else (also missing) -> run straight away
+    let mut confirmed = command.confirm != Some(true);
 
     if std::env::var("XX_CONFIRM").as_deref() == Ok("false") {
         confirmed = true;

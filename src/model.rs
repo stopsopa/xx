@@ -10,7 +10,7 @@ pub struct Command {
     pub name: String,
     pub command: String,
     pub description: String,
-    // None = not specified in config, which means: ask
+    // None = not specified in config (or not a boolean), which means the same as false: don't ask
     pub confirm: Option<bool>,
     pub source: bool,
     pub order: Option<i64>,

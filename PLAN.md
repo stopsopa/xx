@@ -120,7 +120,7 @@ Node itself (`src/node.rs`): `XX_NODE_BINARY` is required, no fallback to `PATH`
 Rules applied in Rust (`src/model.rs`):
 
 - `command` must be a string. `description` defaults to the key. `<% name %>` in both is replaced with the key.
-- `confirm` missing means ask. `XX_CONFIRM=false` skips every question. `source` uses JS truthiness.
+- `confirm` asks only when it is `true`, missing means don't ask (it meant ask before v0.6.0). `XX_CONFIRM=false` skips every question. `source` uses JS truthiness.
 - `order`: stable sort, missing counts as 0, so negative goes to the top, positive to the bottom, and configs without `order` keep file order. The old comparator was inconsistent.
 - `xx <number>` means the number **shown in the menu** (after sorting); a number is tried before a name. The old tool used the position in the file.
 
