@@ -198,7 +198,10 @@ Previous tag: v0.0.4
 Mode:         patch
 New tag:      v0.0.5
 
-Press Enter to create and push tag 'v0.0.5', or Ctrl+C to abort...
+About to create and push tag: v0.0.5
+(the pushed tag starts the release)
+
+ WAITING  press Enter to continue, Esc or Ctrl+C to abort:
 Enumerating objects: 9, done.
 ...
 To github.com:stopsopa/xx.git

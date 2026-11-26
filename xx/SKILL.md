@@ -108,11 +108,11 @@ Fields of a command, only `command` is required:
 
 `ctx`, the second argument of the function:
 
-| Field        | What it is                                                                                              |
-| ------------ | ------------------------------------------------------------------------------------------------------- |
-| `args`       | Arguments given after the name of the command (never `--config <path>`).                                |
-| `cwd`        | Directory xx was called in. The script is executed there.                                               |
-| `configPath` | Absolute path of the config in use.                                                                     |
+| Field        | What it is                                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| `args`       | Arguments given after the name of the command (never `--config <path>`).                                 |
+| `cwd`        | Directory xx was called in. The script is executed there.                                                |
+| `configPath` | Absolute path of the config in use.                                                                      |
 | `configDir`  | Absolute path of its directory. The way to reach files living next to the config, never a relative path. |
 
 ```ts
