@@ -2,6 +2,14 @@
 
 Each release has its own `## vX.Y.Z` section. The release workflow copies the section matching the pushed tag to the top of the GitHub release page (`bash/release_notes.sh`), so add the section before running `tag.sh`.
 
+## v1.1.0
+
+- **`xx --config <path>`** and **`XX_CONFIG`**: new. Use given config instead of searching for one (`.git/xx.*`, `./xx.*`, `~/xx.*` are skipped, no fallback). `<path>` is a file (any name, extension `.ts` `.js` `.mjs` `.cjs`) or a directory with `xx.*`. The command is still executed in the directory where `xx` was called, so one config with general purpose tools can be used from anywhere: `alias ai='xx --config "/path/to/ai/xx.ts"'`. `--config` has to be given before the name of the command and never reaches the command; it wins over `XX_CONFIG`.
+- **`ctx.configDir`**: new, absolute path of the directory of the config (always, also without `--config`), to reach files living next to it: `/bin/bash "${ctx.configDir}/xx/tool.sh"`.
+- **Menu**: shows the path of the config when it was given with `--config` / `XX_CONFIG`.
+- **`xx --env`**: lists `XX_CONFIG`.
+- **Templates**: `Ctx` type has `configDir`, new example command `ctx`.
+
 ## v0.6.0
 
 - **`confirm` defaults to `false`** (breaking): a command is executed straight away unless it says `confirm: true`. Before, a command without `confirm` asked "Run command?". If you relied on that for commands which should not run by accident, add `confirm: true` to them. `confirm: false` in existing configs still works, it is just not needed anymore.

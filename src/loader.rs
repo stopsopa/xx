@@ -28,11 +28,16 @@ pub fn load(
     let config_str = config.to_string_lossy().to_string();
 
     let args_json: Vec<String> = args.iter().map(|a| json_string(a)).collect();
+    let config_dir = config
+        .parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
     let ctx = format!(
-        r#"{{"args":[{}],"cwd":{},"configPath":{}}}"#,
+        r#"{{"args":[{}],"cwd":{},"configPath":{},"configDir":{}}}"#,
         args_json.join(","),
         json_string(&cwd.to_string_lossy()),
         json_string(&config_str),
+        json_string(&config_dir),
     );
 
     let output = node::command(&node.path)

@@ -266,7 +266,40 @@ __xx_source() {
   return "${__XX_CODE}"
 }
 
+# Runs the binary. --config taken from the arguments (see __xx_main) is given back to it here,
+# as an argument and only for this one call: it is never exported, so xx called from a command
+# of xx doesn't inherit it (exported XX_CONFIG is inherited, as every env var).
+# Variables are local in __xx_main, visible here because the function is called from there.
+__xx_bin() {
+  if [[ -n "${__XX_CONFIG_SET}" ]]; then
+    "${__XX_BIN_PATH}" --config "${__XX_CONFIG_ARG}" "${@}"
+  else
+    "${__XX_BIN_PATH}" "${@}"
+  fi
+}
+
 __xx_main() {
+  # --config <path> / --config=<path> is an option of xx, recognised only at the beginning.
+  # It is removed from the arguments here, so everything below sees exactly what it would see
+  # without it: ${1} is the name of the command (or an option), and after dropping the name
+  # what is left are arguments of the script - never --config and its path.
+  # "--config" as the last word is left where it is, the binary prints the error.
+  local __XX_CONFIG_SET=""
+  local __XX_CONFIG_ARG=""
+  while [[ "${1-}" = "--config" || "${1-}" = --config=* ]]; do
+    if [[ "${1}" = "--config" ]]; then
+      if [[ "${#}" -lt 2 ]]; then
+        break
+      fi
+      __XX_CONFIG_ARG="${2}"
+      shift 2
+    else
+      __XX_CONFIG_ARG="${1#--config=}"
+      shift
+    fi
+    __XX_CONFIG_SET="1"
+  done
+
   # version of this file is printed even when the binary is missing or broken,
   # version of the binary follows after it passed the check
   if [[ "${1}" = "--version" || "${1}" = "-V" ]]; then
@@ -277,7 +310,7 @@ __xx_main() {
   # When the binary can't be used the reason is printed and then at least the raw values
   if [[ "${#}" = "1" && "${1}" = "--env" ]]; then
     if __xx_check_bin; then
-      "${__XX_BIN_PATH}" --env < /dev/null
+      __xx_bin --env < /dev/null
       return "${?}"
     fi
     cat <<EEE >&2
@@ -290,6 +323,7 @@ XX_INIT_CONFIG >${XX_INIT_CONFIG-}<
 XX_CONFIRM >${XX_CONFIRM-}<
 XX_TMP >${XX_TMP-}<
 XX_RELEASES >${XX_RELEASES-}<
+XX_CONFIG >${XX_CONFIG-}<
 EEE
     return 1
   fi
@@ -316,7 +350,7 @@ EEE
   # these only print something, nothing to execute afterwards
   case "${1}" in
     --help|-h|--version|-V|--list|--init|--esm|--gen)
-      "${__XX_BIN_PATH}" "${@}" < /dev/null
+      __xx_bin "${@}" < /dev/null
       return "${?}"
       ;;
   esac
@@ -325,7 +359,7 @@ EEE
   # The menu doesn't need it, it talks to /dev/tty directly.
   local __XX_GENERATED
   local __XX_CODE
-  __XX_GENERATED="$("${__XX_BIN_PATH}" "${@}" < /dev/null)"
+  __XX_GENERATED="$(__xx_bin "${@}" < /dev/null)"
   __XX_CODE="${?}"
 
   # drop the name of the command (or --), what is left are arguments for the script

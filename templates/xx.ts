@@ -55,10 +55,14 @@ type Commands = Record<string, Command>;
 type Ctx = {
   // arguments given after the name of the command: xx <name> [args]
   args: string[];
-  // directory xx was called in
+  // directory xx was called in. The script of the command is executed there,
+  // also when this file lives somewhere else (xx --config <path>, XX_CONFIG)
   cwd: string;
-  // path of this file
+  // absolute path of this file
   configPath: string;
+  // absolute path of the directory of this file, to reach files living next to it:
+  //   command: `/bin/bash "${ctx.configDir}/xx/tool.sh" "\${@}"`
+  configDir: string;
 };
 
 export default (setup: Commands, ctx: Ctx): Commands => {
@@ -104,6 +108,29 @@ EEE
       description: "Status of all things",
       source: false,
       confirm: false,
+    },
+    // ctx: what xx knows about this call. Useful mostly for a config used from other directories:
+    //   alias tools='xx --config "/path/to/this/xx.ts"'
+    // the script is executed where "tools" was typed (ctx.cwd), files which live next to
+    // this config are reached through ctx.configDir
+    [`ctx`]: {
+      command: `
+cat <<EEE
+
+  args       : ${ctx.args.join(" ")}
+  cwd        : ${ctx.cwd}
+  configPath : ${ctx.configPath}
+  configDir  : ${ctx.configDir}
+
+  the same arguments seen by bash : \${*}
+  and its current directory       : \$(pwd)
+
+EEE
+
+# script kept next to this config, working on the directory xx was called in:
+# /bin/bash "${ctx.configDir}/xx/tool.sh" "\${@}"
+`,
+      description: `values of ctx: args, cwd, configPath, configDir`,
     },
     [`yarn`]: {
       command: `

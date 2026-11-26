@@ -314,6 +314,25 @@ fn truncate(text: &str, max: usize) -> String {
     out
 }
 
+// the same, but the beginning is cut: for paths, where the end (name of the file) matters most
+fn truncate_start(text: &str, max: usize) -> String {
+    if UnicodeWidthStr::width(text) <= max {
+        return text.to_string();
+    }
+    let mut out: Vec<char> = Vec::new();
+    let mut width = 1;
+    for c in text.chars().rev() {
+        let w = UnicodeWidthChar::width(c).unwrap_or(0);
+        if width + w > max {
+            break;
+        }
+        width += w;
+        out.push(c);
+    }
+    out.push('…');
+    out.iter().rev().collect()
+}
+
 // text of one row: "█   1 - name"
 pub fn label(index: usize, length: usize, name: &str) -> String {
     range(&format!("{:>3} - {}", index + 1, name), index, length)
@@ -329,6 +348,8 @@ struct Select<'a> {
     cursor: usize,
     // first row of visible shown on the screen
     offset: usize,
+    // one gray line under the header, e.g. which config the menu comes from
+    note: Option<String>,
 }
 
 impl<'a> Select<'a> {
@@ -345,6 +366,7 @@ impl<'a> Select<'a> {
             visible: (0..list.len()).collect(),
             cursor: 0,
             offset: 0,
+            note: None,
         }
     }
 
@@ -368,8 +390,9 @@ impl<'a> Select<'a> {
     }
 
     fn page(&self, rows: usize) -> usize {
-        // header + empty line + description + help + one spare line
-        rows.saturating_sub(5).max(3)
+        // header + empty line + description + help + one spare line (+ note)
+        rows.saturating_sub(5 + usize::from(self.note.is_some()))
+            .max(3)
     }
 
     fn scroll(&mut self, page: usize) {
@@ -396,6 +419,13 @@ impl<'a> Select<'a> {
             ));
         }
         out.push(header);
+
+        if let Some(note) = &self.note {
+            out.push(format!(
+                "  {DIM}{}{RESET}",
+                truncate_start(note, max.saturating_sub(2))
+            ));
+        }
 
         if self.visible.is_empty() {
             out.push(format!("  {DIM}(no match){RESET}"));
@@ -444,8 +474,9 @@ fn draw(term: &mut dyn Term, previous: usize, lines: &[String]) {
 /**
  * Interactive menu. Returns index of selected command, None when cancelled (Esc, Ctrl+C).
  */
-pub fn select(term: &mut dyn Term, list: &[Command]) -> Option<usize> {
+pub fn select(term: &mut dyn Term, list: &[Command], note: Option<&str>) -> Option<usize> {
     let mut state = Select::new(list);
+    state.note = note.map(str::to_string);
     let mut previous = 0;
 
     loop {

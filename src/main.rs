@@ -41,6 +41,10 @@ const HOMEPAGE: &str = "https://github.com/stopsopa/xx";
 const INIT_CONFIG: &str = "https://stopsopa.github.io/xx/init.json";
 const ENV_INIT_CONFIG: &str = "XX_INIT_CONFIG";
 const RELEASES: &str = update::RELEASES;
+const ENV_CONFIG: &str = "XX_CONFIG";
+
+// value of --config given in command line (set once, at the beginning of main)
+static CONFIG_ARG: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
 
 const EXIT_RUN: i32 = 0;
 const EXIT_SOURCE: i32 = 55;
@@ -67,6 +71,15 @@ Usage:
   xx -- [args]               open the menu and pass args to the script of selected command
   echo data | xx <name>      stdin is passed to the script
 
+  xx --config <path> ...     use this config instead of searching for one. Has to be given
+                             before the name of the command, works with everything above
+                             and with --gen and --list. <path> is a file (any name, extension
+                             .ts .js .mjs .cjs) or a directory with xx.ts, xx.js, xx.mjs, xx.cjs.
+                             The command is still executed in the current directory.
+                             One config with tools, used from any directory:
+                               alias ai='xx --config \"/Users/me/project/pages/ai/xx.ts\"'
+                               ai linkrepo restore
+
   xx --gen [name|number]     generate the script and print it, don't run
   xx --list [--json]         print defined commands
   xx --init [ts|js|mjs|cjs]  download template of the config (default: ts)
@@ -83,6 +96,7 @@ Config lookup, first found wins:
   .git/xx.ts  .git/xx.js  .git/xx.mjs  .git/xx.cjs
   ./xx.ts     ./xx.js     ./xx.mjs     ./xx.cjs
   ~/xx.ts     ~/xx.js     ~/xx.mjs     ~/xx.cjs
+  --config <path> or XX_CONFIG skips all of it: only that config is used, no fallback
 
 Module format:
   xx.mjs  always es module:  export default (setup, ctx) => ({{ ... }})
@@ -103,7 +117,12 @@ Config format:
   }});
 
   setup is always {{}} (\"...setup\" at the end of old configs still works),
-  ctx is {{ args, cwd, configPath }}. The function may be async.
+  ctx is {{ args, cwd, configPath, configDir }}. The function may be async.
+    args        arguments given after the name of the command
+    cwd         directory xx was called in, the script is executed there
+    configPath  absolute path of the config in use
+    configDir   directory of the config, to reach files living next to it:
+                command: `/bin/bash \"${{ctx.configDir}}/xx/tool.sh\" \"\\${{@}}\"`
 
 Fields of a command, only \"command\" is required:
   command      string   required. Shell script, written to a file and executed with /bin/bash.
@@ -140,6 +159,9 @@ Environment variables:
                       (not defined: ${{TMPDIR}} of the system, then /tmp)
   XX_RELEASES         used by --update: url or directory with releases
                       default: {RELEASES}
+  XX_CONFIG           the same as --config <path>: file or directory with the config to use
+                      instead of searching for one. --config wins when both are given.
+                      Exported, it is also seen by xx called from a command of xx
 
   xx --env            table of all variables above: value, default and final value
                       which xx really uses right now (after defaults and expanding \"~/\")
@@ -285,6 +307,25 @@ fn env() {
             update::RELEASES.to_string(),
             format!(">{}<", update::releases()),
         ],
+        [
+            ENV_CONFIG.to_string(),
+            raw(ENV_CONFIG),
+            "none: .git/xx.* ./xx.* ~/xx.*".to_string(),
+            match config_request() {
+                Some((value, from)) => {
+                    let from = if from == ENV_CONFIG {
+                        String::new()
+                    } else {
+                        format!(" (from {from}, it wins)")
+                    };
+                    match locate::explicit(&value, &cwd(), home.as_deref()) {
+                        Ok(config) => format!(">{}<{from}", config.display()),
+                        Err(e) => format!("ERROR: {e}{from}"),
+                    }
+                }
+                None => "not used, the config is searched".to_string(),
+            },
+        ],
     ];
 
     let mut widths = [0usize; 3];
@@ -312,7 +353,65 @@ fn env() {
     }
 }
 
+/**
+ * Config pointed directly: (value, where it comes from). The argument wins over the env var.
+ * Empty XX_CONFIG means not defined, like in the rest of XX_* variables.
+ */
+fn config_request() -> Option<(String, &'static str)> {
+    if let Some(Some(value)) = CONFIG_ARG.get() {
+        return Some((value.clone(), "--config"));
+    }
+    std::env::var(ENV_CONFIG)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .map(|v| (v, ENV_CONFIG))
+}
+
+/**
+ * Removes "--config <path>" / "--config=<path>" from the beginning of arguments and returns
+ * the path. It is an option of xx, so it is recognised only before the name of the command:
+ * after the name everything belongs to the command, also literal --config.
+ * Given more than once: the last one wins.
+ */
+fn take_config(args: &mut Vec<String>) -> Result<Option<String>, String> {
+    let mut found = None;
+    loop {
+        let value = match args.first().map(String::as_str) {
+            Some("--config") => {
+                if args.len() < 2 {
+                    return Err(
+                        "--config needs a path: xx --config <file or directory> [name] [args]"
+                            .to_string(),
+                    );
+                }
+                args.remove(0);
+                args.remove(0)
+            }
+            Some(first) if first.starts_with("--config=") => {
+                args.remove(0)["--config=".len()..].to_string()
+            }
+            _ => return Ok(found),
+        };
+        if value.trim().is_empty() {
+            return Err("--config: the path is empty".to_string());
+        }
+        found = Some(value.trim().to_string());
+    }
+}
+
 fn locate_or_fail(cwd: &Path) -> locate::Located {
+    // pointed directly: nothing else is searched, no fallback
+    if let Some((value, from)) = config_request() {
+        return match locate::explicit(&value, cwd, home().as_deref()) {
+            Ok(config) => locate::Located {
+                generated: locate::tmp_generated_explicit(&tmp_dir(), uid(), cwd, &config),
+                config,
+            },
+            Err(e) => fail(&format!("{from}: {e}")),
+        };
+    }
+
     match locate::locate(cwd, home().as_deref(), &fallback_generated(cwd)) {
         Ok(located) => located,
         Err(checked) => {
@@ -604,7 +703,9 @@ fn run(node: &node::Node, what: Option<&str>, args: &[String], gen_only: bool) -
                     "{e}\n  menu needs a terminal, without it name the command: xx <name|number>\n  list of commands: xx --list"
                 ))
             }));
-            match menu::select(t.as_mut(), &list) {
+            // which menu is it: shown only when the config was pointed directly
+            let note = config_request().map(|_| format!("config: {}", located.config.display()));
+            match menu::select(t.as_mut(), &list, note.as_deref()) {
                 Some(i) => &list[i],
                 None => {
                     drop(term);
@@ -682,7 +783,10 @@ fn split(args: &[String]) -> (Option<&str>, &[String]) {
 }
 
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+
+    let config_arg = take_config(&mut args).unwrap_or_else(|e| fail(&e));
+    let _ = CONFIG_ARG.set(config_arg);
 
     // these work without node
     match args.first().map(String::as_str) {
@@ -701,6 +805,11 @@ fn main() {
 
     match args.first().map(String::as_str) {
         Some("--list") => list(&node, args.get(1).map(String::as_str) == Some("--json")),
+        Some(flag @ ("--init" | "--esm")) if CONFIG_ARG.get().is_some_and(Option::is_some) => {
+            fail(&format!(
+                "--config can't be used together with {flag}: --config points to a config which is used, {flag} creates one.\n  To create the template at given path: xx --esm <file or directory>"
+            ))
+        }
         Some("--init") => init(args.get(1).map(String::as_str).unwrap_or("ts"), None),
         Some("--esm") => init("ts", args.get(1).map(String::as_str)),
         Some("--gen") => {

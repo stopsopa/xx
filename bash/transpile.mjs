@@ -112,7 +112,7 @@ for (const [ext, { format, notes }] of Object.entries(flavours)) {
  * Proof that nothing was lost: every generated file is loaded the way xx loads it
  * and has to return exactly what xx.ts returns
  */
-const ctx = { args: ["a", "b c"], cwd: "/some/cwd", configPath: "/some/cwd/xx" };
+const ctx = { args: ["a", "b c"], cwd: "/some/cwd", configPath: "/some/config/xx", configDir: "/some/config" };
 
 async function load(file) {
   // .js is loaded from a copy named .mjs: this repository says "type": "module", but the file

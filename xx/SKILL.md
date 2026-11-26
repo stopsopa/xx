@@ -4,7 +4,7 @@ description: Work with xx (https://github.com/stopsopa/xx) - a menu of project s
 license: GPL-2.0-only
 metadata:
   author: stopsopa
-  version: "1.0.0"
+  version: "1.1.0"
   website: https://github.com/stopsopa/xx
   created: "2026-11-23 00:07:53"
 ---
@@ -17,13 +17,16 @@ The xx menu is usually the best list of "how things are done in this project" (b
 
 ## Which file is used
 
-First found wins, only in the current directory (no walking up):
+First found wins:
 
-1. `.git/xx.ts`, `.git/xx.js`, `.git/xx.mjs`, `.git/xx.cjs` (private, not committed)
-2. `./xx.ts`, `./xx.js`, `./xx.mjs`, `./xx.cjs` (shared with the team)
-3. `~/xx.*` (only when nothing above exists)
+1. `--config <path>` or env var `XX_CONFIG` (the argument wins): only that config is used, everything below is skipped, no fallback. `<path>` is a file (any name, extension `.ts` `.js` `.mjs` `.cjs`) or a directory containing `xx.*`; relative to the current directory, `~/` means home.
+2. `.git/xx.ts`, `.git/xx.js`, `.git/xx.mjs`, `.git/xx.cjs` (private, not committed)
+3. `./xx.ts`, `./xx.js`, `./xx.mjs`, `./xx.cjs` (shared with the team)
+4. `~/xx.*` (only when nothing above exists)
 
-A file in `.git/` hides the one in `./` completely, they are not merged. If the menu is not what you expect, check `.git/` first.
+2 to 4 look only in the current directory (no walking up). A file in `.git/` hides the one in `./` completely, they are not merged. If the menu is not what you expect, check `XX_CONFIG` (`"$XX" --env`) and `.git/` first.
+
+`--config` separates "where the config is" from "where the command works": the command is always executed in the directory xx was called in. It is how one config of general purpose tools is used from any project, usually through an alias the user has (`alias ai='xx --config "/path/to/ai/xx.ts"'`). An alias doesn't exist in your shell: when the user says "run `ai linkrepo`", call `"$XX" --config "/path/to/ai/xx.ts" linkrepo` in the directory they mean.
 
 ## Calling xx (you are not in an interactive shell)
 
@@ -58,6 +61,13 @@ FILE="$(XX_CONFIRM=false "$XX" "<name>" arg1 arg2 < /dev/null)"; CODE="$?"
 - stdin of the script is yours to use: `echo data | /bin/bash "$FILE"`.
 - `source: true` commands (exit code 55) are meant to change the user's interactive shell (`cd`, `source venv/bin/activate`, `export`). Sourcing them in your shell has no effect for the user: tell the user to run `xx <name>` instead.
 - Env vars for the config are set on the binary: `ENVFILE=.env.ci "$XX" --gen "docker up"`.
+- With another config, `--config <path>` goes first and only to the binary, never to the script (it is not an argument of the command). It works the same with `--list` and `--gen`:
+
+  ```sh
+  FILE="$(XX_CONFIRM=false "$XX" --config "/path/to/xx.ts" "<name>" arg1 < /dev/null)" && /bin/bash "$FILE" arg1
+  ```
+
+  Run it in the directory the command should work on: the script is executed where you are, not where the config is.
 
 Commands can be destructive or outward-facing (deploy, publish, delete). `confirm: true` is the author's hint that it needs care, but most configs don't set it (the default is `false`), so its absence proves nothing: read the script and ask the user before running such a command.
 
@@ -66,7 +76,7 @@ Commands can be destructive or outward-facing (deploy, publish, delete). `confir
 ```ts
 // xx.ts - "export default". In xx.cjs: "module.exports = (setup, ctx) => { ... }"
 export default (setup, ctx) => {
-  // may be async. ctx = { args, cwd, configPath }
+  // may be async. ctx = { args, cwd, configPath, configDir }
   return {
     "docker up": {
       command: `
@@ -95,6 +105,24 @@ Fields of a command, only `command` is required:
 | `order`       | number  | `0`                 | Lower goes first: negative = top, positive = bottom. The same `order`: order of the file.                                                                          |
 
 `<% name %>` in `command` and `description` is replaced with the name of the command.
+
+`ctx`, the second argument of the function:
+
+| Field        | What it is                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------- |
+| `args`       | Arguments given after the name of the command (never `--config <path>`).                                |
+| `cwd`        | Directory xx was called in. The script is executed there.                                               |
+| `configPath` | Absolute path of the config in use.                                                                     |
+| `configDir`  | Absolute path of its directory. The way to reach files living next to the config, never a relative path. |
+
+```ts
+linkrepo: {
+  // the script lives next to the config, it works on the directory xx was called in
+  command: `/bin/bash "${ctx.configDir}/xx/linkrepo.sh" "\${@}"`,
+},
+```
+
+Relative `import` / `require` inside the config resolve relative to the config file, as in any module. Relative paths inside `command` resolve relative to the directory xx was called in, which with `--config` is not the directory of the config: use `ctx.configDir`.
 
 In xx before v0.6.0 the default of `confirm` was `true` (ask), which is why older configs say `confirm: false` in every command. That line is redundant now: don't add it to new commands, leave it alone in existing ones.
 

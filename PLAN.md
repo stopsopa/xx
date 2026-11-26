@@ -100,6 +100,8 @@ Lookup, first found wins. In every directory the order is `xx.ts`, `xx.js`, `xx.
 | `./` without `.git`                   | `${XX_TMP}/xx-<uid>/<hash of pwd>.sh` |
 | `~/` (only when nothing above exists) | `${XX_TMP}/xx-<uid>/<hash of pwd>.sh` |
 
+- `--config <path>` / `XX_CONFIG` (argument wins) points to the config directly: a file with any name (extension decides the format) or a directory with `xx.*` (its `.git/` is not searched). Everything in the table is skipped then, there is no fallback. The command still runs in the directory xx was called in; "where the config is" and "where the command works" are separate, and `ctx.configDir` is how a command reaches files next to its config. The script goes to `${XX_TMP}/xx-<uid>/<hash of pwd + config>.sh`: not into `.git` of a project the config doesn't belong to, and one file per (directory, config) pair.
+- `--config` is an option of xx, valid only before the name of the command. Both places which see the arguments drop it: the binary (`take_config` in `main.rs`) and the wrapper, which strips it at the very top of `__xx_main` so that the rest of it (the `case` on `${1}`, the single `shift` before running the script) sees the same arguments as without it. The wrapper gives it back to the binary as an argument of that one call (`__xx_bin`), never as an exported variable: that is why a nested `xx` doesn't inherit `--config` but does inherit an exported `XX_CONFIG`.
 - Only the current directory is checked, no walking up. `~/xx.*` is a fallback, it is not merged into project menus (undecided, see section 10).
 - `.git` being a file (worktree, submodule: `gitdir: path`) is resolved to the real git directory.
 - The temp path replaced `~/xx_generated.sh`, which was shared by all terminals. `XX_TMP` falls back to `TMPDIR`, then `/tmp`. The hash is FNV-1a of `pwd` (stable between versions). The `xx-<uid>` directory is created `700` and refused if it is not owned by the user or is writable by others: in a shared `/tmp` nobody else may be able to swap a script that is about to be executed.
@@ -110,7 +112,7 @@ Module format is decided by node, xx adds no rules: `.mjs` always ESM, `.cjs` al
 The loader (`src/loader.js`, compiled in with `include_str!`, run as `node -e <loader> <config> <ctx json>`):
 
 1. `import()` the config. It works for every flavour; for CommonJS `module.exports` arrives as `default`.
-2. Call the exported function as `fn({}, ctx)` with `ctx = { args, cwd, configPath }` and await it (it may be async). The first argument stays `{}` so `...setup` at the end of old configs keeps working.
+2. Call the exported function as `fn({}, ctx)` with `ctx = { args, cwd, configPath, configDir }` and await it (it may be async). The first argument stays `{}` so `...setup` at the end of old configs keeps working.
 3. Print `Object.entries(result)` as a JSON **array** between two markers. An array, because it keeps exactly the order node saw; object key order is not safe across parsers and JS itself moves integer-like keys to the front.
 4. `process.stdout.write` is redirected to stderr first, so `console.log` in a config cannot corrupt the JSON. Rust takes the text between the last pair of markers.
 5. One node warning is silenced (`MODULE_TYPELESS_PACKAGE_JSON`): it would print four lines on every run for an ESM `xx.js` / `xx.ts` in a project whose `package.json` has no `"type"`.

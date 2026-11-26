@@ -201,6 +201,8 @@ xx <name|number> [args]     # run command directly, number is the one shown in t
 xx -- [args]                # open the menu and pass args to the picked command
 echo data | xx <name>       # stdin goes to the script of the command
 
+xx --config <path> ...      # use this config instead of searching for one (before anything else)
+
 xx --gen [name|number]      # write and print the script, don't run it
 xx --list [--json]          # print commands
 xx --init [ts|js|mjs|cjs]   # download template of the config, default ts
@@ -225,6 +227,49 @@ First found wins, checked in this order:
 | 3   | `~/xx.ts`, `~/xx.js`, `~/xx.mjs`, `~/xx.cjs`             | `${XX_TMP}/xx-<uid>/<hash of pwd>.sh`                                         |
 
 Only the current directory is checked, parent directories are not.
+
+### `--config`: one config used from any directory
+
+`xx --config <path>` (or env var `XX_CONFIG`, the argument wins when both are given) says which config to use. The lookup above is then skipped completely: no merging, no fallback.
+
+```sh
+# config and scripts of general purpose tools, in one fixed directory:
+#   /Users/me/project/pages/ai/xx.ts
+#   /Users/me/project/pages/ai/xx/report.sh
+#   /Users/me/project/pages/ai/xx/linkrepo.sh
+
+alias ai='xx --config "/Users/me/project/pages/ai/xx.ts"'
+
+cd /any/other/project
+ai                    # menu from /Users/me/project/pages/ai/xx.ts
+ai linkrepo restore   # command "linkrepo" with argument "restore"
+ai --list             # works with --list, --gen and everything else
+```
+
+"Where the config is" and "where the command works" are two different places now: the command is executed (or sourced, with `source: true`) in the directory where you typed `ai`, exactly like any other `xx` command. The config reaches files living next to it through `ctx.configDir`:
+
+```ts
+export default (setup: Commands, ctx: Ctx): Commands => {
+  return {
+    [`linkrepo`]: {
+      command: `
+set -e
+/bin/bash "${ctx.configDir}/xx/linkrepo.sh" "\${@}"
+`,
+      description: `link repositories in ./__linked`,
+    },
+    ...setup,
+  };
+};
+```
+
+- **`<path>`** is a file or a directory. A file can have any name, its extension (`.ts`, `.js`, `.mjs`, `.cjs`) decides how it is loaded. In a directory `xx.ts`, `xx.js`, `xx.mjs`, `xx.cjs` are searched (not in its `.git/`). A relative path is resolved against the current directory, `~/` at the beginning means home.
+- **Errors**: a file which doesn't exist, a directory without a config, an unsupported extension: error with the absolute path, exit code 1. Never a silent fallback to `./xx.*`.
+- **It is an option of `xx`, not of the command**: it is recognised only before the name of the command and it never reaches the command, neither `ctx.args` nor `${1}`, `${2}`... After the name everything belongs to the command, also a literal `--config`: `xx name --config abc` passes `--config abc` to the command. `--config=<path>` works too.
+- **Generated script** goes to `${XX_TMP}/xx-<uid>/<hash of pwd and of the config>.sh`: never to `.git/` of the directory you are in, never next to the config. The same config used in two directories at the same moment, or two configs used in one directory, don't overwrite each other.
+- **Menu** shows one gray line with the path of the config, so you know which menu you are looking at.
+- **`xx` called from a command of `xx`**: `--config` is not inherited (the nested `xx` searches for a config the normal way), exported `XX_CONFIG` is inherited like any env var, and `--config` given to the nested call wins over it.
+- **`--init` / `--esm`** can't be combined with `--config` (clear error). To create the template at a given path use `xx --esm <path>`. `XX_CONFIG` has no influence on them.
 
 ### Which extension, which module format
 
@@ -259,7 +304,7 @@ type Command = {
   order?: number;
 };
 
-type Ctx = { args: string[]; cwd: string; configPath: string };
+type Ctx = { args: string[]; cwd: string; configPath: string; configDir: string };
 
 export default (setup: Record<string, Command>, ctx: Ctx): Record<string, Command> => {
   return {
@@ -292,7 +337,11 @@ The same in CommonJS (`xx.cjs`, or `xx.js`): `module.exports = (setup, ctx) => {
 
 - It is plain JavaScript executed by node, so the script can be built any way you like: `process.env`, imports, shared snippets, computed names. `${...}` is filled when the config is loaded, `\${...}` is left for bash.
 - The function can be `async` (can return a Promise).
-- `ctx` is `{ args, cwd, configPath }` - arguments given after the name of the command, current directory, path of the config.
+- `ctx` is `{ args, cwd, configPath, configDir }`:
+  - `args`: arguments given after the name of the command.
+  - `cwd`: directory `xx` was called in. The script is executed there.
+  - `configPath`: absolute path of the config in use.
+  - `configDir`: absolute path of its directory, to reach files living next to the config (see [`--config`](#--config-one-config-used-from-any-directory)).
 - `<% name %>` in `command` and `description` is replaced with the name of the command.
 - Rows are numbered after sorting by `order`, `xx 3` runs the row shown as 3 in the menu.
 - Anything the config prints (`console.log`) goes to stderr.
@@ -310,6 +359,7 @@ In every variable holding a path, `~/` at the beginning means your home director
 | `XX_CONFIRM`      | no       | binary  | `false` skips every "Run command?" question.             |
 | `XX_TMP`          | no       | binary  | Directory for generated scripts when there is no `.git`. |
 | `XX_RELEASES`     | no       | binary  | Where `--update` takes releases from.                    |
+| `XX_CONFIG`       | no       | binary  | Config to use instead of searching for one.              |
 
 `xx --env` shows all of them in a table: what is in the environment, what is the default and the final value `xx` really works with right now (after applying defaults and expanding `~/`):
 
@@ -323,6 +373,7 @@ XX_INIT_CONFIG  | not defined                              | https://stopsopa.gi
 XX_CONFIRM      | not defined                              | true                                    | true (ask when the command has confirm: true)
 XX_TMP          | not defined                              | ${TMPDIR}, then /tmp                    | >/tmp< (scripts in >/tmp/xx-1000<)
 XX_RELEASES     | not defined                              | https://github.com/stopsopa/xx/releases | >https://github.com/stopsopa/xx/releases<
+XX_CONFIG       | not defined                              | none: .git/xx.* ./xx.* ~/xx.*           | not used, the config is searched
 ```
 
 `not defined` and `><` (defined, empty) are shown differently, but they mean the same: the default is used. When `XX_NODE_BINARY` is wrong the reason is printed under the table. When `XX_BIN` is wrong the table can't be printed (it comes from the binary): `xx.sh` says what is wrong with `XX_BIN` and prints just the raw values.
@@ -400,6 +451,10 @@ Used by `--update`: URL or local directory (`~/` at the beginning means home dir
 
 - `<XX_RELEASES>/latest`: for a URL it has to redirect to `.../tag/<tag>`, in a directory it is a file containing the tag.
 - `<XX_RELEASES>/download/<tag>/`: `xx.sh`, `SHA256SUMS.txt` and the binaries (`xx-darwin-arm64`, `xx-linux-x64`, `xx-linux-arm64`).
+
+### `XX_CONFIG`
+
+The same as [`--config <path>`](#--config-one-config-used-from-any-directory): file or directory with the config to use, instead of searching for one. `--config` wins when both are given, empty means not defined. Exported, it is seen also by `xx` called from a command of `xx`.
 
 ## Arguments and stdin
 

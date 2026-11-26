@@ -99,6 +99,79 @@ pub fn tmp_generated(tmp: &Path, uid: u32, cwd: &Path) -> PathBuf {
 }
 
 /**
+ * The same for config given with --config / XX_CONFIG: the file depends on the directory xx was
+ * called in AND on the config, so the same config used in two directories at once, or two
+ * configs used in one directory, never share the file. Always in tmp: .git of the current
+ * directory belongs to another project than the config.
+ */
+pub fn tmp_generated_explicit(tmp: &Path, uid: u32, cwd: &Path, config: &Path) -> PathBuf {
+    use std::os::unix::ffi::OsStrExt;
+    let mut key = cwd.as_os_str().as_bytes().to_vec();
+    key.push(0);
+    key.extend_from_slice(config.as_os_str().as_bytes());
+    tmp.join(format!("xx-{uid}"))
+        .join(format!("{:016x}.sh", hash(&key)))
+}
+
+// "/a/./b/../c" -> "/a/c", without touching the disk (symlinks stay as they were written)
+pub fn normalize(path: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for part in path.components() {
+        match part {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
+
+/**
+ * Config given with --config / XX_CONFIG. No other place is searched, no fallback.
+ *
+ *   file       - any name, extension has to be one of EXTENSIONS (it decides how node loads it)
+ *   directory  - xx.ts, xx.js, xx.mjs, xx.cjs in it (not in its .git)
+ *
+ * Relative path is resolved against cwd, "~/" at the beginning means home.
+ * Returns absolute path of the config, Err is a message with the absolute path in it.
+ */
+pub fn explicit(value: &str, cwd: &Path, home: Option<&Path>) -> Result<PathBuf, String> {
+    let path = normalize(&cwd.join(expand_tilde(value, home)));
+
+    if path.is_dir() {
+        return find_config(&path).ok_or_else(|| {
+            let names: Vec<String> = EXTENSIONS.iter().map(|e| format!("xx.{e}")).collect();
+            format!(
+                "directory >{}< has no config in it, looked for {}",
+                path.display(),
+                names.join(", ")
+            )
+        });
+    }
+
+    if !path.is_file() {
+        return Err(format!(
+            "config >{}< doesn't exist (it has to be a file or a directory)",
+            path.display()
+        ));
+    }
+
+    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    if !EXTENSIONS.contains(&extension) {
+        return Err(format!(
+            "config >{}< has unsupported extension >{extension}<, allowed: {}\n  (the extension decides how node loads the file)",
+            path.display(),
+            EXTENSIONS.map(|e| format!(".{e}")).join(", ")
+        ));
+    }
+
+    Ok(path)
+}
+
+/**
  * Lookup order, in every directory: xx.ts, xx.js, xx.mjs, xx.cjs
  *
  *   config                              generated script
@@ -248,6 +321,50 @@ mod tests {
         assert_eq!(expand_tilde("~other/x", Some(home)), "~other/x");
         assert_eq!(expand_tilde("rel/x", Some(home)), "rel/x");
         assert_eq!(expand_tilde("~/x", None), "~/x");
+    }
+
+    #[test]
+    fn explicit_config() {
+        let d = tmp("explicit");
+        let cwd = d.join("cwd");
+        let home = d.join("home");
+        fs::create_dir_all(d.join("tools/.git")).unwrap();
+        fs::write(d.join("tools/menu.ts"), "").unwrap();
+        fs::write(d.join("tools/.git/xx.ts"), "").unwrap();
+        fs::write(d.join("tools/notes.txt"), "").unwrap();
+        fs::write(home.join("h.cjs"), "").unwrap();
+
+        // file: absolute, relative to cwd, ~/
+        let abs = d.join("tools/menu.ts");
+        assert_eq!(explicit(abs.to_str().unwrap(), &cwd, Some(&home)).unwrap(), abs);
+        assert_eq!(explicit("../tools/./menu.ts", &cwd, Some(&home)).unwrap(), abs);
+        assert_eq!(explicit("~/h.cjs", &cwd, Some(&home)).unwrap(), home.join("h.cjs"));
+
+        // directory: only xx.* directly in it, .git of it is not searched
+        let e = explicit("../tools", &cwd, Some(&home)).unwrap_err();
+        assert!(e.contains("has no config in it"), "{e}");
+        assert!(e.contains(d.join("tools").to_str().unwrap()), "{e}");
+        fs::write(d.join("tools/xx.mjs"), "").unwrap();
+        fs::write(d.join("tools/xx.cjs"), "").unwrap();
+        assert_eq!(explicit("../tools", &cwd, Some(&home)).unwrap(), d.join("tools/xx.mjs"));
+
+        let e = explicit("nothing.ts", &cwd, Some(&home)).unwrap_err();
+        assert!(e.contains(cwd.join("nothing.ts").to_str().unwrap()), "{e}");
+        assert!(e.contains("doesn't exist"), "{e}");
+
+        let e = explicit("../tools/notes.txt", &cwd, Some(&home)).unwrap_err();
+        assert!(e.contains("unsupported extension >txt<"), "{e}");
+    }
+
+    #[test]
+    fn tmp_generated_explicit_depends_on_cwd_and_config() {
+        let t = Path::new("/t");
+        let a = tmp_generated_explicit(t, 501, Path::new("/a"), Path::new("/c/xx.ts"));
+        assert_ne!(a, tmp_generated_explicit(t, 501, Path::new("/b"), Path::new("/c/xx.ts")));
+        assert_ne!(a, tmp_generated_explicit(t, 501, Path::new("/a"), Path::new("/d/xx.ts")));
+        assert_ne!(a, tmp_generated(t, 501, Path::new("/a")));
+        assert_eq!(a, tmp_generated_explicit(t, 501, Path::new("/a"), Path::new("/c/xx.ts")));
+        assert!(a.starts_with("/t/xx-501"));
     }
 
     #[test]
