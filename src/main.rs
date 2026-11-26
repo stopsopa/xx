@@ -693,8 +693,9 @@ fn run(node: &node::Node, what: Option<&str>, args: &[String], gen_only: bool) -
         Some(what) => match model::pick(&list, what) {
             Some(c) => c,
             None => fail(&format!(
-                "function >{what}< not defined in >{}<",
-                located.config.display()
+                "function >{what}< not defined in >{}<{}",
+                located.config.display(),
+                option_hint(what)
             )),
         },
         None => {
@@ -771,6 +772,52 @@ fn run(node: &node::Node, what: Option<&str>, args: &[String], gen_only: bool) -
     }
 
     exit(EXIT_RUN);
+}
+
+const OPTIONS: [&str; 11] = [
+    "--help", "--version", "--list", "--gen", "--init", "--esm", "--env", "--update", "--config",
+    "-h", "-V",
+];
+
+// number of single character edits (insert, delete, replace) between two words
+fn distance(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for i in 1..=a.len() {
+        let mut previous = row[0];
+        row[0] = i;
+        for j in 1..=b.len() {
+            let current = row[j];
+            row[j] = (previous + usize::from(a[i - 1] != b[j - 1]))
+                .min(row[j] + 1)
+                .min(row[j - 1] + 1);
+            previous = current;
+        }
+    }
+    row[b.len()]
+}
+
+/**
+ * Name of a command which was not found and starts with "-" is most likely a mistyped option
+ * of xx (xx --verion). A command can have such a name, so it is only a hint added to the error.
+ */
+fn option_hint(what: &str) -> String {
+    if !what.starts_with('-') {
+        return String::new();
+    }
+    let closest = OPTIONS
+        .iter()
+        .filter(|o| o.len() > 2)
+        .map(|o| (distance(what, o), *o))
+        .filter(|(d, _)| *d <= 2)
+        .min();
+    match closest {
+        Some((_, option)) => format!(
+            "\n  it looks like an option of xx, did you mean: xx {option}\n  all options: xx --help"
+        ),
+        None => "\n  it looks like an option of xx, there is no such option, see: xx --help".to_string(),
+    }
 }
 
 // splits "[name|number] [args...]" / "-- [args...]" into what to run and arguments of the script
