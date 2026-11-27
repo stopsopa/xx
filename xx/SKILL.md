@@ -377,3 +377,14 @@ once you extract top comment put it in our new (result of migration) xx.ts and s
 After committing migration is complete.
 
 And express explicitly to continue. Only then continue witch what you have been asked to do.
+
+## When asked HOW to migrate
+
+When the user only asks how to migrate (e.g. "how to migrate xx.cjs to xx.ts"), don't explain the steps and don't start the migration. Always answer just with something like this, with the absolute path of the config found in the current project:
+
+```
+The xx skill has the procedure of migration described, you just have to ask me to migrate here.
+Would you like to migrate '/absolute/path/to/xx.cjs' to xx.ts?
+```
+
+Only when the user confirms (or asks to do the migration in other words) do the migration as described above.
